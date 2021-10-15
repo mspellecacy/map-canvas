@@ -1,0 +1,53 @@
+<style>
+    #mapPortal {
+        position: relative;
+        padding-bottom: 75%;
+        height: 0;
+        overflow: hidden;
+    }
+
+    #mapPortal iframe {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100% !important;
+        height: 100% !important;
+    }
+
+    #mapCanvasContainer {
+        display: flex;
+        gap: 10px;
+        flex-direction: column;
+        justify-content: center;
+        height: 100%;
+        width: 100%;
+    }
+
+    #mapCanvasZoomLevel {
+        align-self: end;
+        max-width: 30px;
+    }
+</style>
+
+<form id="mapPortalForm">
+    <div id="mapCanvasContainer">
+        <div id="inputHolder" style="display: flex">
+            <input type="text" id="mapCanvasZoomLevel" value="" placeholder="z" style="align-self: flex-start" disabled>
+            <input type="text" id="mapCanvasSearchBox" name="placesSearch" placeholder="Search">
+            <input type="button" onClick="updateScene()" value="Update Scene">
+            <input type="button" onClick="generateScene()" value="Generate Scene">
+
+        </div>
+        <div class="mapPortal" id="mapPortal"></div>
+    </div>
+</form>
+
+<script type="application/javascript">
+   function generateScene() {
+       Hooks.call('mapCanvasGenerateScene');
+   }
+   function updateScene() {
+       Hooks.call('mapCanvasUpdateScene');
+   }
+</script>
+
