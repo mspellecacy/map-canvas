@@ -365,7 +365,7 @@ class MapCanvas extends Application {
 
         window['mapcanvas'] = { dialogActive: false, apiLoaded: false };
 
-        $.getScript('http://html2canvas.hertzen.com/dist/html2canvas.min.js', () => { /* import html2canvas */ });
+        $.getScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.3.2/html2canvas.min.js', () => { /* import html2canvas */ });
 
         Hooks.on("getSceneControlButtons", (controls) => this.addControls(controls));
         Hooks.on('mapCanvasGenerateScene', this.handleSceneRequest);
