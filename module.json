@@ -8,5 +8,6 @@
   "scripts": [
     "scripts/map-canvas.js"
   ],
-  "manifest": "https://raw.githubusercontent.com/mspellecacy/map-canvas/master/module.json"
+  "manifest": "https://raw.githubusercontent.com/mspellecacy/map-canvas/master/module.json",
+  "download": "https://github.com/mspellecacy/map-canvas/archive/refs/heads/master.zip"
 }
