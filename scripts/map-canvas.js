@@ -317,7 +317,6 @@ class MapDialog extends FormApplication {
             MapDialog.zoomLevelElem.value = MapDialog.mapPortal.getZoom();
         });
 
-
         MapDialog.placesService = new google.maps.places.PlacesService(MapDialog.mapPortal);
 
         const searchBox = new google.maps.places.SearchBox(MapDialog.searchBoxElem);
@@ -381,8 +380,8 @@ class MapCanvas extends Application {
             const canvasTools = [
                 {
                     active: true,
-                    name: "maplocker",
-                    title: "Lock Map",
+                    name: "mapdialog",
+                    title: "Open Map Dialog",
                     icon: "fas fa-map-marker-alt",
                     button: true,
                     toggle: true,
@@ -420,7 +419,7 @@ class MapCanvas extends Application {
 
     openDialog() {
         if (!window['mapcanvas'].dialogActive) { window['mapcanvas'].dialogActive = true } else { return }
-        window['mapcanvas'].dialog = new MapDialog({ searchValue: window['mapcanvas'].lastSearch || "Anchorage, AK"});
+        window['mapcanvas'].dialog = new MapDialog();
         window['mapcanvas'].dialog.render(true);
     }
 
@@ -445,7 +444,6 @@ class MapCanvas extends Application {
                     gridType: 0
                 }
             ]
-            console.log(updates);
             Scene.updateDocuments(updates);
         });
     }
@@ -480,11 +478,13 @@ class MapCanvas extends Application {
         }
 
         await Scene.create(sceneDataOpts).then(scene => {
-            console.log('Generated Scene: ', scene);
+            console.log('Generated Scene: ', scene.name);
         });
     }
 
     static async registerSettings() {
+
+
         await game.settings.register('MapCanvas', 'MAPS_API_KEY', {
             name: 'Google Maps Javascript API Key',
             hint: 'Google how to get a Maps Javascript API Key.',
