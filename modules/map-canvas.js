@@ -4,6 +4,8 @@ class MapDialog extends FormApplication {
 
     constructor(object, options) {
         super(object, options);
+
+        // Using window['mapcanvas'] as a way to track dialog state. Not ideal.
         window['mapcanvas'].dialogActive = true;
         window['mapcanvas'].apiLoaded = false;
 
@@ -12,8 +14,9 @@ class MapDialog extends FormApplication {
             if(!window['mapcanvas'].apiLoaded) {
                 await $.getScript('https://polyfill.io/v3/polyfill.min.js?features=default', () => {});
                 await $.getScript('https://maps.googleapis.com/maps/api/js?libraries=places&v=weekly&key='+MAPS_API_KEY, () => {});
-                window['mapcanvas'].apiLoaded = true;
+                window['mapcanvas'].apiLoaded = true;  // We assume.
             }
+
             MapDialog.initMap();
         });
     }
@@ -31,23 +34,21 @@ class MapDialog extends FormApplication {
         return opts;
     }
 
-
     static getMapStyle() {
         let styleJSON = [];
         const mapCanvasStyle = game.settings.get("map-canvas", "DEFAULT_MAP_STYLE");
 
-        if(mapCanvasStyle.toUpperCase() === "CUSTOM" ) {
+        if(mapCanvasStyle.toUpperCase() === "CUSTOM" ) { // If they're using custom we have to parse the string to JSON.
             styleJSON = JSON.parse(game.settings.get("map-canvas", "CUSTOM_MAP_STYLE_JSON"));
         } else {
             styleJSON = MAP_STYLES[mapCanvasStyle.toUpperCase()];
         }
 
-        console.log("Maps theme: ", mapCanvasStyle);
-        console.log("Style: ", styleJSON);
         return styleJSON;
     }
 
-    static initMap(center = { lat: -34.397, lng: 150.644 }) {
+    // 40.7571, -73.8458 - Citi Field, Queens, NY - LET'S GO METS!
+    static initMap(center = { lat: 40.7571, lng: -73.8458 }) {
 
         MapDialog.mapPortal = {};
         MapDialog.placesService = {};
@@ -55,16 +56,13 @@ class MapDialog extends FormApplication {
         MapDialog.searchBoxElem = document.querySelector('#mapCanvasSearchBox');
         MapDialog.zoomLevelElem = document.querySelector('#mapCanvasZoomLevel');
 
-
-        let opts = {
+        const opts = {
             center: center,
-            zoom: 8,
+            zoom: 17,
             disableDefaultUI: false,
             mapTypeId: google.maps.MapTypeId[game.settings.get("map-canvas", "DEFAULT_MAP_MODE")],
             styles: this.getMapStyle()
         }
-
-        console.log("Use Map Options: ", opts);
 
         MapDialog.mapPortal = new google.maps.Map(MapDialog.mapPortalElem, opts);
 
@@ -74,20 +72,46 @@ class MapDialog extends FormApplication {
 
         MapDialog.placesService = new google.maps.places.PlacesService(MapDialog.mapPortal);
 
-        const searchBox = new google.maps.places.SearchBox(MapDialog.searchBoxElem);
+        MapDialog.initAutocomplete(MapDialog.mapPortal, MapDialog.searchBoxElem);
 
-        // Extremely basic implementation of search. Uses the Places api to do the heavy lifting.
-        MapDialog.searchBoxElem.addEventListener("keyup", (e) => {
-            e.preventDefault();
-            if (e.key === "Enter") {
-                let searchRequest = {query: e.target.value, fields: ["name", "geometry"]}
-                MapDialog.placesService.findPlaceFromQuery(searchRequest, (results, status) => {
-                    if (status === google.maps.places.PlacesServiceStatus.OK && results) {
-                        MapDialog.mapPortal.setCenter(results[0].geometry.location);
-                    }
-                });
-            }
+    }
+
+    // Adapted from: https://developers.google.com/maps/documentation/javascript/examples/places-searchbox
+    static initAutocomplete(map, input) {
+        const searchBox = new google.maps.places.SearchBox(input);
+
+        map.addListener("bounds_changed", () => {
+            searchBox.setBounds(map.getBounds());
         });
+
+        // Listen for the event fired when the user selects a prediction and retrieve
+        // more details for that place.
+        searchBox.addListener("places_changed", () => {
+            const places = searchBox.getPlaces();
+
+            if (places.length === 0) {
+                return;
+            }
+
+            // For each place, get the icon, name and location.
+            const bounds = new google.maps.LatLngBounds();
+
+            places.forEach((place) => {
+                if (!place.geometry || !place.geometry.location) {
+                    console.log("Returned place contains no geometry");
+                    return;
+                }
+
+                if (place.geometry.viewport) {
+                    // Only geocodes have viewport.
+                    bounds.union(place.geometry.viewport);
+                } else {
+                    bounds.extend(place.geometry.location);
+                }
+            });
+            map.fitBounds(bounds);
+        });
+
     }
 
     getData(options = {}) {
@@ -99,8 +123,9 @@ class MapDialog extends FormApplication {
     }
 
     async _updateObject(event, formData) {
-        window['mapcanvas'].lastSearch = formData.mapCanvasSearchValue
-        this.object = { searchValue: formData.mapCanvasSearchValue, portalActive: true };
+        // TODO: Rethink / Reimplement how we can properly rehydrate a dialog box where users last left it.
+        window['mapcanvas'].lastSearch = formData.mapCanvasSearchBox
+        this.object = { searchValue: formData.mapCanvasSearchBox, portalActive: true };
     }
 
     async close() {
@@ -108,7 +133,6 @@ class MapDialog extends FormApplication {
         window['mapcanvas'].dialog = {}
         await super.close();
     }
-
 }
 
 class MapCanvas extends Application {
@@ -148,7 +172,7 @@ class MapCanvas extends Application {
                 {
                     active: false,
                     name: "purgetemp",
-                    title: "Purge Temp Scenes",
+                    title: "Purge Generated Scenes",
                     icon: "fas fa-backspace",
                     button: true,
                     toggle: true,
@@ -163,7 +187,7 @@ class MapCanvas extends Application {
 
             const hudControl = {
                 name: "mapcanvas",
-                title: "MapCanvas",
+                title: "Map Canvas",
                 icon: "fas fa-globe",
                 layer: "controls",
                 tools: canvasTools,
@@ -195,7 +219,7 @@ class MapCanvas extends Application {
             ui.notifications.info('Map Canvas | Created default scene: '+DEFAULT_SCENE);
         }
 
-        MapCanvas.getMapCanvasImage().then(image => {
+        await MapCanvas.getMapCanvasImage().then(image => {
             const updates = [
                 {
                     _id: scene.id,
@@ -207,22 +231,30 @@ class MapCanvas extends Application {
                     gridType: 0
                 }
             ]
-            Scene.updateDocuments(updates);
+            Scene.updateDocuments(updates).then(() => ui.notifications.info("Updated Scene: "+DEFAULT_SCENE));
         });
     }
 
     static async getMapCanvasImage() {
         let tempImage = new Image();
         let imageDems = {};
+
+        // TODO: Refactor this hacky fix to remove the map controls when capturing the background image.
+        function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms) ) }
+        MapDialog.mapPortal.setOptions({ disableDefaultUI: true }); // Remove controls before taking map capture.
+        await sleep(100); // Hack to give the maps api time to remove the controls.
+
         await html2canvas(document.querySelector("#mapPortal"), { useCORS: true }).then( mapCanvas => {
-            // simple hack to get image size from data urls.
-            tempImage.onload = (_) => {
-                imageDems = { width: _.currentTarget.naturalWidth, height: _.currentTarget.naturalHeight }
-            };
-            tempImage.src = mapCanvas.toDataURL();
+           // simple hack to get image size from data urls.
+           tempImage.onload = (_) => {
+               imageDems = { width: _.currentTarget.naturalWidth, height: _.currentTarget.naturalHeight }
+           };
+           tempImage.src = mapCanvas.toDataURL();
         });
 
-        return { dataUrl: tempImage.src, dems: imageDems} ;
+        MapDialog.mapPortal.setOptions({ disableDefaultUI: false }); // Put the map controls back.
+
+        return { dataUrl: tempImage.src, dems: imageDems } ;
     }
 
 
@@ -247,12 +279,10 @@ class MapCanvas extends Application {
 
     static async registerSettings() {
 
-        console.log(MAP_STYLES);
-
         await game.settings.register('map-canvas', 'MAPS_API_KEY', {
             name: 'Google Maps Javascript API Key',
             hint: 'Google how to get a Maps Javascript API Key.',
-            scope: 'client',
+            scope: 'world',
             config: true,
             type: String,
             default: "",
@@ -262,7 +292,7 @@ class MapCanvas extends Application {
         await game.settings.register('map-canvas', 'DEFAULT_SCENE', {
             name: 'Default Scene Name',
             hint: 'Used when running canvas updates.',
-            scope: 'client',
+            scope: 'world',
             config: true,
             type: String,
             default: "MapCanvasScene",
@@ -272,7 +302,7 @@ class MapCanvas extends Application {
         await game.settings.register('map-canvas', 'DEFAULT_MAP_MODE', {
             name: 'Default Map Mode',
             hint: 'Determines what display mode loads by default when opening the map dialog.',
-            scope: 'client',
+            scope: 'world',
             config: true,
             type: String,
             choices: {
@@ -286,7 +316,7 @@ class MapCanvas extends Application {
         await game.settings.register('map-canvas', "DEFAULT_MAP_STYLE", {
             name: 'Default Maps Style',
             hint: 'See: https://mapstyle.withgoogle.com/',
-            scope: 'client',
+            scope: 'world',
             config: true,
             type: String,
             choices: {
@@ -303,7 +333,7 @@ class MapCanvas extends Application {
         await game.settings.register('map-canvas', "CUSTOM_MAP_STYLE_JSON", {
             name: 'Custom Map Styling JSON',
             hint: 'Optional: Used when selecting \'Custom\' from the styles drop down',
-            scope: 'client',
+            scope: 'world',
             config: true,
             type: String,
         });
