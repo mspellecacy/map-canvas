@@ -36,7 +36,7 @@
             <input type="text" id="mapCanvasSearchBox" name="placesSearch" placeholder="Search">
             <input type="button" onClick="updateScene()" value="Update Scene">
             <input type="button" onClick="generateScene()" value="Generate Scene">
-
+            <input type="button" onClick="toggleLabels()" value="Labels">
         </div>
         <div class="mapPortal" id="mapPortal"></div>
     </div>
@@ -48,6 +48,9 @@
    }
    function updateScene() {
        Hooks.call('mapCanvasUpdateScene');
+   }
+   function toggleLabels() {
+       Hooks.call('mapCanvasToggleLabels');
    }
 </script>
 

@@ -956,4 +956,22 @@ export const MAP_STYLES = {
             ]
         }
     ],
+    LABELS_OFF: [
+        {
+            featureType: "all",
+            elementType: "labels",
+            stylers: [
+                { visibility: "off" }
+            ]
+        }
+    ],
+    LABELS_ON: [
+        {
+            featureType: "all",
+            elementType: "labels",
+            stylers: [
+                { visibility: "on" }
+            ]
+        }
+    ],
 }
