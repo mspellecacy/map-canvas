@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.0.4
+
+- Updated README.md with new pictures. 
+- Added button to toggle labels to take cleaner map captures.
+
 ## v0.0.3
 
 - Updated modules.json to better support releases. 

@@ -19,6 +19,9 @@ class MapDialog extends FormApplication {
 
             MapDialog.initMap();
         });
+
+        Hooks.on('mapCanvasToggleLabels', this.toggleLabels);
+        MapDialog.labelsOn = true;
     }
 
     static get defaultOptions() {
@@ -59,7 +62,9 @@ class MapDialog extends FormApplication {
         const opts = {
             center: center,
             zoom: 17,
+            tilt: 0, // Suppress tilting on zoom in by default. (users can still toggle it on)
             disableDefaultUI: false,
+            streetViewControl: false, // TODO: Figure out how to make Street View capture properly.
             mapTypeId: google.maps.MapTypeId[game.settings.get("map-canvas", "DEFAULT_MAP_MODE")],
             styles: this.getMapStyle()
         }
@@ -73,7 +78,6 @@ class MapDialog extends FormApplication {
         MapDialog.placesService = new google.maps.places.PlacesService(MapDialog.mapPortal);
 
         MapDialog.initAutocomplete(MapDialog.mapPortal, MapDialog.searchBoxElem);
-
     }
 
     // Adapted from: https://developers.google.com/maps/documentation/javascript/examples/places-searchbox
@@ -111,6 +115,18 @@ class MapDialog extends FormApplication {
             });
             map.fitBounds(bounds);
         });
+
+    }
+
+    toggleLabels() {
+        // Unfortunately this will effectively overwrite label visibility styling defined by any custom style.
+        if(MapDialog.labelsOn) {
+            MapDialog.mapPortal.set('styles', MAP_STYLES.LABELS_OFF);
+            MapDialog.labelsOn = false;
+        } else {
+            MapDialog.mapPortal.set('styles', MAP_STYLES.LABELS_ON);
+            MapDialog.labelsOn = true;
+        }
 
     }
 
@@ -273,7 +289,7 @@ class MapCanvas extends Application {
         }
 
         await Scene.create(sceneDataOpts).then(scene => {
-            console.log('Generated Scene: ', scene.name);
+            ui.notifications.info("Generated Scene: "+scene.name)
         });
     }
 
