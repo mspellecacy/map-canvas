@@ -1,4 +1,5 @@
 import {MAP_STYLES} from "./map-canvas-styles.js";
+import {ImageDataConverter} from "./image-data-converter.js";
 
 class MapDialog extends FormApplication {
 
@@ -63,6 +64,7 @@ class MapDialog extends FormApplication {
             center: center,
             zoom: 17,
             tilt: 0, // Suppress tilting on zoom in by default. (users can still toggle it on)
+            scaleControl: true,
             disableDefaultUI: false,
             streetViewControl: false, // TODO: Figure out how to make Street View capture properly.
             mapTypeId: google.maps.MapTypeId[game.settings.get("map-canvas", "DEFAULT_MAP_MODE")],
@@ -161,7 +163,7 @@ class MapCanvas extends Application {
         $.getScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.3.2/html2canvas.min.js', () => { /* import html2canvas */ });
 
         Hooks.on("getSceneControlButtons", (controls) => this.addControls(controls));
-        Hooks.on('mapCanvasGenerateScene', this.handleSceneRequest);
+        Hooks.on('mapCanvasGenerateScene', () => this.updateScene(true));
         Hooks.on('mapCanvasUpdateScene', this.updateScene);
 
         // Register our settings
@@ -219,38 +221,58 @@ class MapCanvas extends Application {
         window['mapcanvas'].dialog.render(true);
     }
 
-    async handleSceneRequest() {
-        MapCanvas.getMapCanvasImage().then(image => {
-            MapCanvas.generateScene(image.dataUrl, image.dems);
-        });
-    };
-
-    async updateScene() {
+    async updateScene(generateNewScene = false) {
+        const USE_STORAGE = game.settings.get("map-canvas", "USE_STORAGE");
         const DEFAULT_SCENE = game.settings.get("map-canvas", "DEFAULT_SCENE");
-        let scene = game.scenes.find(s => s.name.startsWith(DEFAULT_SCENE));
+        const sceneName = (generateNewScene) ? DEFAULT_SCENE+"_"+new Date().getTime() : DEFAULT_SCENE;
+        let scene = game.scenes.find(s => s.name.startsWith(sceneName));
 
         if(!scene) {
-            // Create our default scene if we don't have it.
-            await Scene.create({name: DEFAULT_SCENE }).then(s => scene = s);
-            ui.notifications.info('Map Canvas | Created default scene: '+DEFAULT_SCENE);
+            // Create our scene if we don't have it.
+            await Scene.create({name: sceneName }).then(s => {
+                scene = s;
+                ui.notifications.info('Map Canvas | Created scene: '+sceneName);
+            });
         }
 
-        await MapCanvas.getMapCanvasImage().then(image => {
-            const updates = [
-                {
-                    _id: scene.id,
-                    img: image.dataUrl,
-                    bgSource: image.dataUrl,
-                    height: 3000,
-                    width: 4000,
-                    padding: 0.01,
-                    gridType: 0
-                }
-            ]
-            Scene.updateDocuments(updates).then(() => ui.notifications.info("Updated Scene: "+DEFAULT_SCENE));
+        await MapCanvas.getMapCanvasImage().then(async (image) => {
+            // TODO: Make some of these user-definable. Perhaps leveraging Scene.createDialog().
+            let updates = {
+                _id: scene.id,
+                img: image.dataUrl,
+                bgSource: image.dataUrl,
+                width: 4000,
+                height: 3000,
+                padding: 0.01,
+                gridType: 0
+            }
+
+            if(USE_STORAGE) {
+                const fileName = `${DEFAULT_SCENE}_${new Date().getTime()}_BG.png`
+                const blob = new ImageDataConverter(image.dataUrl).dataURItoBlob();
+                const tempFile = new File([blob], fileName, {
+                    type: "image/png",
+                    lastModified: new Date(),
+                });
+
+                await FilePicker.createDirectory('user', 'map-canvas').catch((e) => {
+                    if (!e.startsWith("EEXIST")) console.log(e);
+                });
+
+                await FilePicker.upload('data', 'map-canvas', tempFile).then((res) => {
+                    updates.bgSource = res.path;
+                    updates.img = res.path;
+                });
+
+            }
+
+            await Scene.updateDocuments([updates]).then(() => {
+                ui.notifications.info(" Map Canvas | Updated Scene: " + sceneName)
+            });
         });
     }
 
+    // TODO: Kinda violates single-responsibility principle, method should be moved to the MapDialog class.
     static async getMapCanvasImage() {
         let tempImage = new Image();
         let imageDems = {};
@@ -273,26 +295,6 @@ class MapCanvas extends Application {
         return { dataUrl: tempImage.src, dems: imageDems } ;
     }
 
-
-    // Todo: DRY out generateScene() and updateScene() in to a unified method.
-    static async generateScene(img, dems) {
-        const SCENE_NAME = game.settings.get("map-canvas", "DEFAULT_SCENE");
-        // At some point I could make these options user defined, but for now they're hardcoded.
-        const sceneDataOpts = {
-            name: SCENE_NAME+"_"+new Date().getTime(),
-            img: img,
-            bgSource: img,
-            height: 3000,
-            width: 4000,
-            padding: 0.01,
-            gridType: 0
-        }
-
-        await Scene.create(sceneDataOpts).then(scene => {
-            ui.notifications.info("Generated Scene: "+scene.name)
-        });
-    }
-
     static async registerSettings() {
 
         await game.settings.register('map-canvas', 'MAPS_API_KEY', {
@@ -312,6 +314,16 @@ class MapCanvas extends Application {
             config: true,
             type: String,
             default: "MapCanvasScene",
+            filePicker: false,
+        });
+
+        await game.settings.register('map-canvas', 'USE_STORAGE', {
+            name: 'Store Images [Experimental]',
+            hint: 'Stores images instead of embedding them in the scene document, should speed up image propagation.',
+            scope: 'world',
+            config: true,
+            type: Boolean,
+            default: false,
             filePicker: false,
         });
 
@@ -348,7 +360,7 @@ class MapCanvas extends Application {
 
         await game.settings.register('map-canvas', "CUSTOM_MAP_STYLE_JSON", {
             name: 'Custom Map Styling JSON',
-            hint: 'Optional: Used when selecting \'Custom\' from the styles drop down',
+            hint: 'Optional: Used when selecting \'Custom\' from the styles drop down.',
             scope: 'world',
             config: true,
             type: String,

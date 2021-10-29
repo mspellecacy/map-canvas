@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.0.5
+- Added experimental feature to store images instead of embedding them in the Scene document. This should help speedup the Scene update process.
+- Added configuration to toggle image storage. 
+- Forced the scale control to always show when rendering the map.
+- DRY'd out some internal functions.  
+
 ## v0.0.4
 
 - Updated README.md with new pictures. 
