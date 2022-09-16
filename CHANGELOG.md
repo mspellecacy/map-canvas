@@ -1,5 +1,8 @@
 # Changelog
 
+## v0.0.6
+- Updated to support FoundryVTT v10
+
 ## v0.0.5
 - Added experimental feature to store images instead of embedding them in the Scene document. This should help speedup the Scene update process.
 - Added configuration to toggle image storage. 

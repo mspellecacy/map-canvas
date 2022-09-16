@@ -303,8 +303,8 @@ class MapCanvas extends Application {
             scope: 'world',
             config: true,
             type: String,
-            default: "",
             filePicker: false,
+            default: "",
         });
 
         await game.settings.register('map-canvas', 'DEFAULT_SCENE', {
@@ -313,8 +313,8 @@ class MapCanvas extends Application {
             scope: 'world',
             config: true,
             type: String,
-            default: "MapCanvasScene",
             filePicker: false,
+            default: "MapCanvasScene",
         });
 
         await game.settings.register('map-canvas', 'USE_STORAGE', {
@@ -323,8 +323,8 @@ class MapCanvas extends Application {
             scope: 'world',
             config: true,
             type: Boolean,
-            default: false,
             filePicker: false,
+            default: false,
         });
 
         await game.settings.register('map-canvas', 'DEFAULT_MAP_MODE', {
@@ -334,11 +334,12 @@ class MapCanvas extends Application {
             config: true,
             type: String,
             choices: {
-                HYBRID: 'HYBRID',
-                ROADMAP: 'ROADMAP',
-                SATELLITE: 'SATELLITE',
-                TERRAIN: 'TERRAIN',
+                HYBRID: "HYBRID",
+                ROADMAP: "ROADMAP",
+                SATELLITE: "SATELLITE",
+                TERRAIN: "TERRAIN",
             },
+            default: "HYBRID"
         });
 
         await game.settings.register('map-canvas', "DEFAULT_MAP_STYLE", {
@@ -356,6 +357,7 @@ class MapCanvas extends Application {
                 Aubergine: "Aubergine",
                 Custom: "Custom"
             },
+            default: "Standard"
         });
 
         await game.settings.register('map-canvas', "CUSTOM_MAP_STYLE_JSON", {
@@ -364,6 +366,7 @@ class MapCanvas extends Application {
             scope: 'world',
             config: true,
             type: String,
+            default: ""
         });
 
     }
