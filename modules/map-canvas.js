@@ -1,6 +1,48 @@
 import {MAP_STYLES} from "./map-canvas-styles.js";
 import {ImageDataConverter} from "./image-data-converter.js";
 
+Hooks.once('ready', async function() {
+    // Register last used scene name setting
+    game.settings.register('map-canvas', 'LAST_USED_SCENE_NAME', {
+        name: 'Last Used Scene Name',
+        hint: 'Stores the last used scene name for the map canvas.',
+        scope: 'client', // This specifies that the setting is stored for each individual user.
+        config: false, // This specifies that the setting does not appear in the settings menu.
+        type: String,
+        default: ''
+    });
+
+    // Register last used zoom setting
+    game.settings.register('map-canvas', 'LAST_USED_ZOOM', {
+        name: 'Last Used Zoom Level',
+        hint: 'Stores the last used zoom level for the map canvas.',
+        scope: 'client',
+        config: false,
+        type: Number,
+        default: 1 // Default zoom level, adjust as needed
+    });
+    // Register setting for latitude
+    game.settings.register('map-canvas', 'LAST_USED_LAT', {
+        name: 'Last Used Latitude',
+        scope: 'client',
+        config: false,
+        type: Number,
+        default: 40.7571, // Default latitude, adjust as needed
+    });
+
+    // Register setting for longitude
+    game.settings.register('map-canvas', 'LAST_USED_LNG', {
+        name: 'Last Used Longitude',
+        scope: 'client',
+        config: false,
+        type: Number,
+        default: -73.8458, // Default longitude, adjust as needed
+    });
+
+    // ... other code for your module setup ...
+});
+
+
 class MapDialog extends FormApplication {
 
     constructor(object, options) {
@@ -53,6 +95,15 @@ class MapDialog extends FormApplication {
 
     // 40.7571, -73.8458 - Citi Field, Queens, NY - LET'S GO METS!
     static initMap(center = { lat: 40.7571, lng: -73.8458 }) {
+        
+
+
+        const lastUsedLat = game.settings.get('map-canvas', 'LAST_USED_LAT');
+        const lastUsedLng = game.settings.get('map-canvas', 'LAST_USED_LNG');
+        if(lastUsedLat && lastUsedLng){
+            center = { lat: lastUsedLat, lng: lastUsedLng };
+        }
+
 
         MapDialog.mapPortal = {};
         MapDialog.placesService = {};
@@ -67,7 +118,8 @@ class MapDialog extends FormApplication {
             scaleControl: true,
             disableDefaultUI: false,
             streetViewControl: false, // TODO: Figure out how to make Street View capture properly.
-            mapTypeId: google.maps.MapTypeId[game.settings.get("map-canvas", "DEFAULT_MAP_MODE")],
+            //mapTypeId: google.maps.MapTypeId[game.settings.get("map-canvas", "DEFAULT_MAP_MODE")],
+            mapTypeId: google.maps.MapTypeId.SATELLITE,
             styles: this.getMapStyle()
         }
 
@@ -76,11 +128,45 @@ class MapDialog extends FormApplication {
         google.maps.event.addListener(MapDialog.mapPortal, 'zoom_changed', (e) => {
             MapDialog.zoomLevelElem.value = MapDialog.mapPortal.getZoom();
         });
+        google.maps.event.addListener(MapDialog.mapPortal, 'zoom_changed', (e) => {
+            MapDialog.zoomLevelElem.value = MapDialog.mapPortal.getZoom();
+        });
+    
+        // Set the last used zoom level and scene name
+        const lastUsedZoom = game.settings.get("map-canvas", "LAST_USED_ZOOM");
+        if (lastUsedZoom) {
+            MapDialog.mapPortal.setZoom(lastUsedZoom);
+            MapDialog.zoomLevelElem.value = lastUsedZoom;
+        }
+    
+        const lastUsedSceneName = game.settings.get("map-canvas", "LAST_USED_SCENE_NAME");
+        if (lastUsedSceneName) {
+            const sceneNameElement = document.querySelector('#mapCanvasSceneName');
+            if (sceneNameElement) {
+                sceneNameElement.value = lastUsedSceneName;
+            }
+        }
 
+        
         MapDialog.placesService = new google.maps.places.PlacesService(MapDialog.mapPortal);
 
         MapDialog.initAutocomplete(MapDialog.mapPortal, MapDialog.searchBoxElem);
+
+        google.maps.event.addListener(MapDialog.mapPortal, 'center_changed', () => {
+            const newCenter = MapDialog.mapPortal.getCenter();
+            game.settings.set('map-canvas', 'LAST_USED_LAT', newCenter.lat());
+            game.settings.set('map-canvas', 'LAST_USED_LNG', newCenter.lng());
+        });
+
+        google.maps.event.addListener(MapDialog.mapPortal, 'zoom_changed', () => {
+            const newZoom = MapDialog.mapPortal.getZoom();
+            game.settings.set('map-canvas', 'LAST_USED_ZOOM', newZoom);
+        });
+
     }
+
+    
+   
 
     // Adapted from: https://developers.google.com/maps/documentation/javascript/examples/places-searchbox
     static initAutocomplete(map, input) {
@@ -97,6 +183,12 @@ class MapDialog extends FormApplication {
 
             if (places.length === 0) {
                 return;
+            }
+            if (places.length > 0 && places[0].geometry && places[0].geometry.location) {
+                // Save the new location
+                const newCenter = places[0].geometry.location;
+                game.settings.set('map-canvas', 'LAST_USED_LAT', newCenter.lat());
+                game.settings.set('map-canvas', 'LAST_USED_LNG', newCenter.lng());
             }
 
             // For each place, get the icon, name and location.
@@ -138,12 +230,32 @@ class MapDialog extends FormApplication {
 
     activateListeners(html) {
         super.activateListeners(html);
+        html.find('#maximize-map').click(this.maximizeDialog.bind(this));
+        this.maximizeDialog();
+
+
+
+    }
+    maximizeDialog() {
+        this.element.css({
+            height: '100vh',
+            width: '100vw',
+            top: 0,
+            left: 0
+        });
     }
 
     async _updateObject(event, formData) {
         // TODO: Rethink / Reimplement how we can properly rehydrate a dialog box where users last left it.
         window['mapcanvas'].lastSearch = formData.mapCanvasSearchBox
         this.object = { searchValue: formData.mapCanvasSearchBox, portalActive: true };
+        this.element.css({
+            height: '100vh',
+
+            top: 0,
+            left: 0
+        });
+
     }
 
     async close() {
@@ -216,24 +328,63 @@ class MapCanvas extends Application {
     }
 
     openDialog() {
-        if (!window['mapcanvas'].dialogActive) { window['mapcanvas'].dialogActive = true } else { return }
+        if (!window['mapcanvas'].dialogActive) { 
+            window['mapcanvas'].dialogActive = true;
+        } else { 
+            return;
+        }
+    
         window['mapcanvas'].dialog = new MapDialog();
         window['mapcanvas'].dialog.render(true);
+    
+        // Set the last used scene name and zoom in the dialog box when UI is opened
     }
+    
+   
+
 
     async updateScene(generateNewScene = false) {
+        let zoom_multipler = 4;
+        if (window.screen.height == 2880) {
+            zoom_multipler = 8;
+        }
+        const map_scale = {};
+        for (let i = 21; i > 0; i--) {
+            map_scale[i] = Math.pow(2, 21 - i) * zoom_multipler;
+        }
+    
         const USE_STORAGE = game.settings.get("map-canvas", "USE_STORAGE");
         const DEFAULT_SCENE = game.settings.get("map-canvas", "DEFAULT_SCENE");
-        const sceneName = (generateNewScene) ? DEFAULT_SCENE+"_"+new Date().getTime() : DEFAULT_SCENE;
-        let scene = game.scenes.find(s => s.name.startsWith(sceneName));
-
-        if(!scene) {
-            // Create our scene if we don't have it.
-            await Scene.create({name: sceneName }).then(s => {
-                scene = s;
-                ui.notifications.info('Map Canvas | Created scene: '+sceneName);
-            });
+    
+        let sceneName = document.querySelector('#mapCanvasSceneName').value;
+        if (!sceneName) {
+            sceneName = (generateNewScene) ? DEFAULT_SCENE + "_" + new Date().getTime() : DEFAULT_SCENE;
         }
+
+        // Save the scene name for future use
+        game.settings.set("map-canvas", "LAST_USED_SCENE_NAME", sceneName);
+
+        const currentZoom = MapDialog.mapPortal.getZoom();
+        sceneName+= " Zoom:" +currentZoom;
+        let scene = game.scenes.find(s => s.name.startsWith(sceneName));
+    
+        if (!scene) {
+            // Create our scene if we don't have it.
+            await Scene.create({ name: sceneName }).then(s => {
+                scene = s;
+                ui.notifications.info('Map Canvas | Created scene: ' + sceneName);
+            });
+    
+            const currentZoom = MapDialog.mapPortal.getZoom();
+            await scene.update({ "grid.distance": map_scale[currentZoom] }).then(updatedScene => {
+                ui.notifications.info("Scene grid updated successfully");
+            });
+            // Save the current zoom level for future use
+            game.settings.set("map-canvas", "LAST_USED_ZOOM", currentZoom);
+
+        }
+    
+    
 
         await MapCanvas.getMapCanvasImage().then(async (image) => {
             // TODO: Make some of these user-definable. Perhaps leveraging Scene.createDialog().
@@ -256,7 +407,7 @@ class MapCanvas extends Application {
                 });
 
                 await FilePicker.createDirectory('user', 'map-canvas').catch((e) => {
-                    if (!e.startsWith("EEXIST")) console.log(e);
+                console.log(e);
                 });
 
                 await FilePicker.upload('data', 'map-canvas', tempFile).then((res) => {
@@ -274,27 +425,38 @@ class MapCanvas extends Application {
 
     // TODO: Kinda violates single-responsibility principle, method should be moved to the MapDialog class.
     static async getMapCanvasImage() {
+        const mapPortal = document.getElementById('mapPortal');
+    
+      
+    
+        // Set full viewport size
+       
+    
+        // Remove controls before taking map capture
+        MapDialog.mapPortal.setOptions({ disableDefaultUI: true });
+        await sleep(100); // Wait for map to update view
+    
+    
         let tempImage = new Image();
         let imageDems = {};
-
-        // TODO: Refactor this hacky fix to remove the map controls when capturing the background image.
-        function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms) ) }
-        MapDialog.mapPortal.setOptions({ disableDefaultUI: true }); // Remove controls before taking map capture.
-        await sleep(100); // Hack to give the maps api time to remove the controls.
-
-        await html2canvas(document.querySelector("#mapPortal"), { useCORS: true }).then( mapCanvas => {
-           // simple hack to get image size from data urls.
-           tempImage.onload = (_) => {
-               imageDems = { width: _.currentTarget.naturalWidth, height: _.currentTarget.naturalHeight }
-           };
-           tempImage.src = mapCanvas.toDataURL();
+    
+        // Capture the map image
+        function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+        
+        await html2canvas(document.querySelector("#mapPortal"), { useCORS: true }).then(mapCanvas => {
+            tempImage.onload = (_) => {
+                imageDems = { width: _.currentTarget.naturalWidth, height: _.currentTarget.naturalHeight };
+            };
+            tempImage.src = mapCanvas.toDataURL();
         });
-
-        MapDialog.mapPortal.setOptions({ disableDefaultUI: false }); // Put the map controls back.
-
-        return { dataUrl: tempImage.src, dems: imageDems } ;
+    
+      
+        MapDialog.mapPortal.setOptions({ disableDefaultUI: false });
+       
+    
+        return { dataUrl: tempImage.src, dems: imageDems };
     }
-
+    
     static async registerSettings() {
 
         await game.settings.register('map-canvas', 'MAPS_API_KEY', {
