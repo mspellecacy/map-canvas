@@ -34,9 +34,11 @@
         <div id="inputHolder" style="display: flex">
             <input type="text" id="mapCanvasZoomLevel" value="" placeholder="z" style="align-self: flex-start" disabled>
             <input type="text" id="mapCanvasSearchBox" name="placesSearch" placeholder="Search">
+            <input type="text" id="mapCanvasSceneName" name="sceneName" placeholder="SceneName">
             <input type="button" onClick="updateScene()" value="Update Scene">
             <input type="button" onClick="generateScene()" value="Generate Scene">
             <input type="button" onClick="toggleLabels()" value="Labels">
+            <button type="button" id="maximize-map">Maximize</button>
         </div>
         <div class="mapPortal" id="mapPortal"></div>
     </div>
