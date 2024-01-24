@@ -624,6 +624,7 @@ class MapCanvas extends Application {
     
     
     static async updateScene(generateNewScene = false) {
+        console.log("I didnt trigger");
         let zoom_multipler = 4;
         if (window.screen.height == 2880) {
             zoom_multipler = 8;
@@ -665,9 +666,11 @@ class MapCanvas extends Application {
     
 
         await MapCanvas.getMapCanvasImage().then(async (image) => {
+            const USE_STORAGE = game.settings.get("map-canvas", "USE_STORAGE");
+            const DEFAULT_SCENE = game.settings.get("map-canvas", "DEFAULT_SCENE");
+
             // TODO: Make some of these user-definable. Perhaps leveraging Scene.createDialog().
             MapDialog.calculateZoneSize();
-
             var mapElement = document.getElementById('mapPortal');
             // Getting the scrollHeight and scrollWidth
             var height = mapElement.scrollHeight;
