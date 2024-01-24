@@ -1,13 +1,35 @@
+
+<style>
+    #loadingIndicator {
+        display: none; /* Hidden initially */
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        
+        z-index: 1000; /* Ensure it's above other elements */
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+</style>
+
 <style>
     #mapPortal {
         position: relative;
         padding-bottom: 75%;
-        height: 0;
+        height: 100vh;<input type="button" onClick="updateScene()" value="Update Scene">
         overflow: hidden;
     }
 
     #mapPortal iframe {
-        position: absolute;
+        position: fixed;
         top: 0;
         left: 0;
         width: 100% !important;
@@ -29,15 +51,55 @@
     }
 </style>
 
+<div id="loadingIndicator" style="display: none;">
+    <!-- Simple CSS Spinner -->
+    <div class="spinner"></div>
+</div>
+
+<style>
+.spinner {
+    border: 4px solid rgba(0, 0, 0, 0.1);
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border-left-color: #09f;
+    animation: spin 1s ease infinite;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
+</style>
+
+
 <form id="mapPortalForm">
     <div id="mapCanvasContainer">
+        <div id="loadingIndicator" style="display: none;">
+            <!-- Simple CSS Spinner -->
+            <div class="spinner"></div>
+        </div>
         <div id="inputHolder" style="display: flex">
             <input type="text" id="mapCanvasZoomLevel" value="" placeholder="z" style="align-self: flex-start" disabled>
             <input type="text" id="mapCanvasSearchBox" name="placesSearch" placeholder="Search">
+            <input type="text" id="mapCanvasSceneName" name="sceneName" placeholder="SceneName">
             <input type="button" onClick="updateScene()" value="Update Scene">
             <input type="button" onClick="generateScene()" value="Generate Scene">
+            <input type="button" id="generate-surrounding" value="Generate Expanded Scene">
             <input type="button" onClick="toggleLabels()" value="Labels">
+            <input type="button" id="move-left" value="Move Left">
+            <input type="button" id="move-right" value="Move Right">
+            <input type="button" id="move-down" value="Move Down">
+            <input type="button" id="move-up" value="Move Up">
+            <input type="text" id="longMult" name="sceneName" placeholder="Longitutde Multiplier" value ="1.76">
+            <input type="text" id="latMult" name="sceneName" placeholder="Latitude Multiplier" value =".568">
+            <input type="button" id="maximize" value="Maximize Window">
         </div>
+      
         <div class="mapPortal" id="mapPortal"></div>
     </div>
 </form>

@@ -1,13 +1,23 @@
 {
-  "name": "map-canvas",
+  "id": "map-canvas",
   "title": "Map Canvas",
   "description": "Use Google Maps to quickly generate Scenes.",
   "version": "This is auto replaced",
   "library": "false",
-  "manifestPlusVersion": "1.0.0",
-  "minimumCoreVersion": "0.8.9",
-  "compatibleCoreVersion": "10",
-  "author": "mspellecacy [fikle#6604]",
+  "minimumCoreVersion": "0.9",
+  "compatibleCoreVersion": "11",
+  "compatibility": {
+    "minimum": 9,
+    "verified": 11
+  },
+  "authors": [
+    {
+      "name": "Michael Spellecacy",
+      "url": "https://github.com/mspellecacy",
+      "email": "mspellecacy@frakle.com",
+      "discord": "fikle"
+    }
+  ],
   "esmodules": [
     "modules/map-canvas.js"
   ],

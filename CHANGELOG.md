@@ -1,4 +1,9 @@
 # Changelog
+## v0.0.7
+- Updated to support FoundryVTT v10's module manifest
+- Add new feature for generating expanded scenes (Huge thanks thomasjeffreyandersontwin!)
+- Map Dialog now opens where you last left it (Another thanks to thomasjeffreyandersontwin!)
+- Fixes bug where single-image scenes were not generating properly
 
 ## v0.0.6
 - Updated to support FoundryVTT v10
