@@ -251,14 +251,14 @@ class MapDialog extends FormApplication {
 
     static async loadAndPlaceImages (capturedImages, ctx) {
         await MapDialog.loadImage(capturedImages.upleft, 0, 0, ctx);
-        await  MapDialog.loadImage(capturedImages.up, 4000, 0, ctx);
-        await  MapDialog.loadImage(capturedImages.upright, 8000, 0, ctx);
-        await  MapDialog.loadImage(capturedImages.left, 0, 3000, ctx);
-        await  MapDialog.loadImage(capturedImages.center, 4000, 3000, ctx);
-        await  MapDialog.loadImage(capturedImages.right, 8000, 3000, ctx);
-        await  MapDialog.loadImage(capturedImages.downleft, 0, 6000, ctx);
-        await  MapDialog.loadImage(capturedImages.down, 4000, 6000, ctx);
-        await  MapDialog.loadImage(capturedImages.downright, 8000, 6000, ctx);
+        await MapDialog.loadImage(capturedImages.up, 4000, 0, ctx);
+        await MapDialog.loadImage(capturedImages.upright, 8000, 0, ctx);
+        await MapDialog.loadImage(capturedImages.left, 0, 3000, ctx);
+        await MapDialog.loadImage(capturedImages.center, 4000, 3000, ctx);
+        await MapDialog.loadImage(capturedImages.right, 8000, 3000, ctx);
+        await MapDialog.loadImage(capturedImages.downleft, 0, 6000, ctx);
+        await MapDialog.loadImage(capturedImages.down, 4000, 6000, ctx);
+        await MapDialog.loadImage(capturedImages.downright, 8000, 6000, ctx);
     };
 
 
@@ -289,13 +289,9 @@ class MapDialog extends FormApplication {
         // Define the movement increment (adjust these values as needed)
         const latIncrement = MapDialog.zoneWidth; // Latitude increment for each movement
         const lngIncrement = MapDialog.zoneHeight; // Longitude increment for each movement
-    
-        //read from local file
-    
-        //let latMultiplier = fs.readFileSync('./latMultiplier.txt', 'utf8');
-        //latMultiplier = parseInt(data, 10);
-        let longMultiplier = document.querySelector('#longMult').value;
-        let latMultiplier = document.querySelector('#latMult').value;
+
+        let longMultiplier = document.querySelector('#mapCanvasLongMult').value;
+        let latMultiplier = document.querySelector('#mapCanvasLatMult').value;
 
         
 
@@ -321,7 +317,6 @@ class MapDialog extends FormApplication {
         MapDialog.mapPortal.panTo(new google.maps.LatLng(lat, lng));
         const sceneNameElement = document.querySelector('#mapCanvasSceneName');
     }
-    
 
     static calculateZoneSize = () => {
         const bounds = MapDialog.mapPortal.getBounds();
@@ -507,13 +502,15 @@ class MapDialog extends FormApplication {
 
     activateListeners(html) {
         super.activateListeners(html);
-        document.getElementById('maximize').addEventListener('click', () => this.maximizeDialog());
-        document.getElementById('move-left').addEventListener('click', () => MapDialog.moveToAdjacentZone('left'));
-        document.getElementById('move-right').addEventListener('click', () => MapDialog.moveToAdjacentZone('right'));
-        document.getElementById('move-up').addEventListener('click', () => MapDialog.moveToAdjacentZone('up'));
-        document.getElementById('move-down').addEventListener('click', () => MapDialog.moveToAdjacentZone('down'));
-
-        document.getElementById('generate-surrounding').addEventListener('click', () => MapDialog.captureSurroundingZones());
+        document.getElementById('mapCanvasUpdateScene').addEventListener('click', () => MapCanvas.updateScene(false));
+        document.getElementById('mapCanvasGenerateScene').addEventListener('click', () => MapCanvas.updateScene(true));
+        document.getElementById('mapCanvasToggleLabels').addEventListener('click', () => this.toggleLabels());
+        document.getElementById('mapCanvasMaximize').addEventListener('click', () => this.maximizeDialog());
+        document.getElementById('mapCanvasMoveLeft').addEventListener('click', () => MapDialog.moveToAdjacentZone('left'));
+        document.getElementById('mapCanvasMoveRight').addEventListener('click', () => MapDialog.moveToAdjacentZone('right'));
+        document.getElementById('mapCanvasMoveUp').addEventListener('click', () => MapDialog.moveToAdjacentZone('up'));
+        document.getElementById('mapCanvasMoveDown').addEventListener('click', () => MapDialog.moveToAdjacentZone('down'));
+        document.getElementById('mapCanvasGenerateExpandedScene').addEventListener('click', () => MapDialog.captureSurroundingZones());
         
     
     }
@@ -624,9 +621,8 @@ class MapCanvas extends Application {
     
     
     static async updateScene(generateNewScene = false) {
-        console.log("I didnt trigger");
         let zoom_multipler = 4;
-        if (window.screen.height == 2880) {
+        if (window.screen.height === 2880) {
             zoom_multipler = 8;
         }
         const map_scale = {};
