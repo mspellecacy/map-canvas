@@ -116,7 +116,6 @@ class MapDialog extends FormApplication {
         // Disable all buttons
         const buttons = document.querySelectorAll('#mapPortalForm input[type="button"]');
         buttons.forEach(button => button.disabled = true);
-    
 
         let capturedImages = {center:{},left:{},right:{},up:{},down:{}, upleft:{}, upright:{}, downleft:{}, downright:{}};
     
@@ -178,8 +177,6 @@ class MapDialog extends FormApplication {
         capturedImages.downright = await MapCanvas.getMapCanvasImage();
         await MapDialog.moveToAdjacentZone('left');
         await sleep(2000);
-
-
     
         ui.notifications.info("stiching image together");
         const stitchedImage = await MapDialog.stitchImages(capturedImages); // Implement the stitching logic
@@ -293,19 +290,15 @@ class MapDialog extends FormApplication {
         let longMultiplier = document.querySelector('#mapCanvasLongMult').value;
         let latMultiplier = document.querySelector('#mapCanvasLatMult').value;
 
-        
-
         switch (direction) {
             case 'left':
                 lng -= lngIncrement* longMultiplier;
-
                 break;
             case 'right':
                 lng += lngIncrement * longMultiplier;
                 break;
             case 'up':
                 lat += latIncrement * latMultiplier;
-
                 break;
             case 'down':
                 lat -= latIncrement * latMultiplier;
@@ -386,14 +379,12 @@ class MapDialog extends FormApplication {
             }
         }
 
-
         MapDialog.searchBoxElem.addEventListener('input', (event) => {
             // For demonstration, directly using the search input value
             // You can replace this with more complex logic as needed
             sceneNameElement.value = event.target.value;
         });
 
-        
         MapDialog.placesService = new google.maps.places.PlacesService(MapDialog.mapPortal);
 
         MapDialog.initAutocomplete(MapDialog.mapPortal, MapDialog.searchBoxElem);
@@ -409,12 +400,12 @@ class MapDialog extends FormApplication {
             game.settings.set('map-canvas', 'LAST_USED_ZOOM', newZoom);
         });
         google.maps.event.addListenerOnce(MapDialog.mapPortal, 'idle', () => {
-        const bounds = MapDialog.mapPortal.getBounds();
-        const ne = bounds.getNorthEast(); // North East corner
-        const sw = bounds.getSouthWest(); // South West corner
+            const bounds = MapDialog.mapPortal.getBounds();
+            const ne = bounds.getNorthEast(); // North East corner
+            const sw = bounds.getSouthWest(); // South West corner
 
-        //google.maps.event.addListenerOnce(MapDialog.mapPortal, 'idle', MapDialog.calculateZoneSize);
-        //google.maps.event.addListener(MapDialog.mapPortal, 'zoom_changed', MapDialog.calculateZoneSize);
+            //google.maps.event.addListenerOnce(MapDialog.mapPortal, 'idle', MapDialog.calculateZoneSize);
+            //google.maps.event.addListener(MapDialog.mapPortal, 'zoom_changed', MapDialog.calculateZoneSize);
     
         });
 
@@ -554,8 +545,6 @@ class MapCanvas extends Application {
         $.getScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.3.2/html2canvas.min.js', () => { /* import html2canvas */ });
 
         Hooks.on("getSceneControlButtons", (controls) => this.addControls(controls));
-        Hooks.on('mapCanvasGenerateScene', () => MapCanvas.updateScene(true));
-        Hooks.on('mapCanvasUpdateScene', MapCanvas.updateScene);
 
         // Register our settings
         Hooks.once('init', () => {
@@ -618,8 +607,7 @@ class MapCanvas extends Application {
     
         // Set the last used scene name and zoom in the dialog box when UI is opened
     }
-    
-    
+
     static async updateScene(generateNewScene = false) {
         let zoom_multipler = 4;
         if (window.screen.height === 2880) {
@@ -640,7 +628,7 @@ class MapCanvas extends Application {
         game.settings.set("map-canvas", "LAST_USED_SCENE_NAME", sceneName);
 
         const currentZoom = MapDialog.mapPortal.getZoom();
-        sceneName+= " Zoom:" +currentZoom;
+        sceneName += " Zoom:" +currentZoom;
         let scene = game.scenes.find(s => s.name.startsWith(sceneName));
     
         if (!scene) {
@@ -654,12 +642,10 @@ class MapCanvas extends Application {
             await scene.update({ "grid.distance": map_scale[currentZoom] }).then(updatedScene => {
                 ui.notifications.info("Scene grid updated successfully");
             });
+
             // Save the current zoom level for future use
             game.settings.set("map-canvas", "LAST_USED_ZOOM", currentZoom);
-           
         }
-    
-    
 
         await MapCanvas.getMapCanvasImage().then(async (image) => {
             const USE_STORAGE = game.settings.get("map-canvas", "USE_STORAGE");
@@ -667,11 +653,11 @@ class MapCanvas extends Application {
 
             // TODO: Make some of these user-definable. Perhaps leveraging Scene.createDialog().
             MapDialog.calculateZoneSize();
-            var mapElement = document.getElementById('mapPortal');
-            // Getting the scrollHeight and scrollWidth
-            var height = mapElement.scrollHeight;
-            var width = mapElement.scrollWidth;
+            const mapElement = document.getElementById('mapPortal');
 
+            // Getting the scrollHeight and scrollWidth
+            const height = mapElement.scrollHeight;
+            const width = mapElement.scrollWidth;
 
             let updates = {
                 _id: scene.id,
@@ -707,7 +693,6 @@ class MapCanvas extends Application {
             await Scene.updateDocuments([updates]).then(() => {
                 ui.notifications.info(" Map Canvas | Updated Scene: " + sceneName)
             });
-        
             
         });
     }
@@ -719,8 +704,7 @@ class MapCanvas extends Application {
         // Remove controls before taking map capture
         MapDialog.mapPortal.setOptions({ disableDefaultUI: true });
         await sleep(100); // Wait for map to update view
-    
-    
+
         let tempImage = new Image();
         let imageDems = {};
     
@@ -733,11 +717,9 @@ class MapCanvas extends Application {
             };
             tempImage.src = mapCanvas.toDataURL();
         });
-    
-      
+
         MapDialog.mapPortal.setOptions({ disableDefaultUI: false });
-       
-    
+
         return { dataUrl: tempImage.src, dems: imageDems };
     }
     
