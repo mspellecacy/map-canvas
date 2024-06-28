@@ -51,270 +51,6 @@ class MapDialog extends FormApplication {
         return styleJSON;
     }
 
-    static zoneWidth = 0; 
-    static zoneHeight = 0; 
-
-    static async updateScenery(){
-        let zoom_multipler = 4;
-        if (window.screen.height == 2880) {
-            zoom_multipler = 8;
-        }
-        const map_scale = {};
-        for (let i = 21; i > 0; i--) {
-            map_scale[i] = Math.pow(2, 21 - i) * zoom_multipler;
-        }
-    
-        const USE_STORAGE = game.settings.get("map-canvas", "USE_STORAGE");
-        const DEFAULT_SCENE = game.settings.get("map-canvas", "DEFAULT_SCENE");
-    
-        let sceneName = document.querySelector('#mapCanvasSceneName').value;
-        if (!sceneName) {
-            sceneName = (generateNewScene) ? DEFAULT_SCENE + "_" + new Date().getTime() : DEFAULT_SCENE;
-        }
-
-        // Save the scene name for future use
-        game.settings.set("map-canvas", "LAST_USED_SCENE_NAME", sceneName);
-
-        const currentZoom = MapDialog.mapPortal.getZoom();
-        sceneName+= " Zoom:" +currentZoom;
-        let scene = game.scenes.find(s => s.name.startsWith(sceneName));
-    
-        if (!scene) {
-            // Create our scene if we don't have it.
-            await Scene.create({ name: sceneName }).then(s => {
-                scene = s;
-                ui.notifications.info('Map Canvas | Created scene: ' + sceneName);
-            });
-    
-            const currentZoom = MapDialog.mapPortal.getZoom();
-            await scene.update({ "grid.distance": map_scale[currentZoom] }).then(updatedScene => {
-                ui.notifications.info("Scene grid updated successfully");
-            });
-            // Save the current zoom level for future use
-            game.settings.set("map-canvas", "LAST_USED_ZOOM", currentZoom);
-           
-        }
-        return scene;
-    }
-
-    
-    static  async captureSurroundingZones() {
-
-        function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
-        document.getElementById('loadingIndicator').style.display = 'block';
-
-        // Disable all buttons
-        const buttons = document.querySelectorAll('#mapPortalForm input[type="button"]');
-        buttons.forEach(button => button.disabled = true);
-
-        let capturedImages = {center:{},left:{},right:{},up:{},down:{}, upleft:{}, upright:{}, downleft:{}, downright:{}};
-    
-        ui.notifications.info("capturing center image");
-        capturedImages.center = await MapCanvas.getMapCanvasImage();
-       
-        ui.notifications.info("capturing left image");
-        await MapDialog.moveToAdjacentZone('left');
-        await sleep(5000);
-        capturedImages.left = await MapCanvas.getMapCanvasImage();
-        
-        ui.notifications.info("capturing right image");
-        await MapDialog.moveToAdjacentZone('right');
-        await sleep(5000);
-        await MapDialog.moveToAdjacentZone('right');
-        await sleep(5000);
-        capturedImages.right = await MapCanvas.getMapCanvasImage();
-
-        ui.notifications.info("capturing up image");
-        await MapDialog.moveToAdjacentZone('left');
-        await sleep(5000);
-        await MapDialog.moveToAdjacentZone('up');
-        await sleep(5000);
-        capturedImages.up = await MapCanvas.getMapCanvasImage();
-
-        ui.notifications.info("capturing up-left image");
-        await MapDialog.moveToAdjacentZone('left');
-        await sleep(5000);
-        capturedImages.upleft = await MapCanvas.getMapCanvasImage()
-        
-        ui.notifications.info("capturing up right-image");
-        await MapDialog.moveToAdjacentZone('right');
-        await sleep(5000);
-        await MapDialog.moveToAdjacentZone('right');
-        await sleep(5000);
-        capturedImages.upright = await MapCanvas.getMapCanvasImage();
-
-
-        ui.notifications.info("capturing down image");
-        await MapDialog.moveToAdjacentZone('left');
-        await sleep(5000);
-        await MapDialog.moveToAdjacentZone('down');
-        await sleep(5000);
-        await MapDialog.moveToAdjacentZone('down');
-        await sleep(5000);
-        capturedImages.down = await MapCanvas.getMapCanvasImage();
-
-        ui.notifications.info("capturing down-right image");
-        await MapDialog.moveToAdjacentZone('left');
-        await sleep(5000);
-        capturedImages.downleft = await MapCanvas.getMapCanvasImage();
-
-        ui.notifications.info("capturing down-left images");
-        await MapDialog.moveToAdjacentZone('right');
-        await sleep(5000);
-
-        await MapDialog.moveToAdjacentZone('right');
-        await sleep(5000);
-        capturedImages.downright = await MapCanvas.getMapCanvasImage();
-        await MapDialog.moveToAdjacentZone('left');
-        await sleep(5000);
-    
-        ui.notifications.info("stiching image together");
-        const stitchedImage = await MapDialog.stitchImages(capturedImages); // Implement the stitching logic
-
-        // Get dimensions from the map element
-        let mapElem = MapDialog.mapPortal.getDiv();
-        const height  = mapElem.offsetHeight * 3;
-        const width = mapElem.offsetWidth * 3;
-   
-        let scene = await MapDialog.updateScenery();
-        const response = await fetch(stitchedImage);
-        const blob = await response.blob();
-        // Prepare updates for the scene
-        let updates = {
-            _id: scene.id,
-            img: stitchedImage,
-            bgSource: stitchedImage,   
-            width: width,
-            height: height,
-            padding: 0.01,
-            gridType: 0
-        };
-        const USE_STORAGE = game.settings.get("map-canvas", "USE_STORAGE");
-        const DEFAULT_SCENE = game.settings.get("map-canvas", "DEFAULT_SCENE");
-
-        if (USE_STORAGE) {
-            const fileName = `${DEFAULT_SCENE}_${new Date().getTime()}_BG.png`;
-            const tempFile = new File([blob], fileName, {
-                type: "image/png",
-                lastModified: new Date(),
-            });
-
-            // Create directory and upload file
-            await FilePicker.createDirectory('user', 'map-canvas').catch(console.error);
-            await FilePicker.upload('data', 'map-canvas', tempFile).then((res) => {
-                updates.bgSource = res.path;
-                updates.img = res.path;
-            }).catch(console.error);
-        }
-        document.getElementById('loadingIndicator').style.display = 'none';
-        // Enable all buttons
-        buttons.forEach(button => button.disabled = false);
-
-        // Update the scene with new data
-        await Scene.updateDocuments([updates]).then(() => {
-            ui.notifications.info("Map Canvas | Updated Scene");
-        }).catch(console.error);
-
-        return stitchedImage;
-    }
-
-    static async stitchImages(capturedImages) {
-        const canvasWidth = 4000 * 3; // 3 images horizontally
-        const canvasHeight = 3000 * 3; // 3 images vertically
-        const canvas = document.createElement('canvas');
-        canvas.width = canvasWidth;
-        canvas.height = canvasHeight;
-        const ctx = canvas.getContext('2d');
-    
-        await  MapDialog.loadAndPlaceImages(capturedImages, ctx);
-        
-        let image = new Promise(async (resolve) => {
-            canvas.toBlob((blob) => {
-                resolve(URL.createObjectURL(blob));
-            }, 'image/png');
-        });
-        return image
-    }
-
-    static async loadAndPlaceImages (capturedImages, ctx) {
-        await MapDialog.loadImage(capturedImages.upleft, 0, 0, ctx);
-        await MapDialog.loadImage(capturedImages.up, 4000, 0, ctx);
-        await MapDialog.loadImage(capturedImages.upright, 8000, 0, ctx);
-        await MapDialog.loadImage(capturedImages.left, 0, 3000, ctx);
-        await MapDialog.loadImage(capturedImages.center, 4000, 3000, ctx);
-        await MapDialog.loadImage(capturedImages.right, 8000, 3000, ctx);
-        await MapDialog.loadImage(capturedImages.downleft, 0, 6000, ctx);
-        await MapDialog.loadImage(capturedImages.down, 4000, 6000, ctx);
-        await MapDialog.loadImage(capturedImages.downright, 8000, 6000, ctx);
-    };
-
-
-    static async loadImage (imgData, x, y, ctx)  {
-        return new Promise((resolve, reject) => {
-            const img = new Image();
-            img.onerror = (error) => {
-                console.error('Error loading image:', error);
-                reject(error);
-            };
-            img.onload = () => {
-                ctx.drawImage(img, x, y, 4000, 3000);
-                resolve();
-            };
-   
-            img.src = imgData.dataUrl;
-        });
-    };
-    
-    
-    static directionsMoved={left:0, right:0, up:0, down:0}
-    static moveToAdjacentZone(direction) {
-        const currentCenter = MapDialog.mapPortal.getCenter();
-        this.calculateZoneSize();
-        let lat = currentCenter.lat();
-        let lng = currentCenter.lng();
-    
-        // Define the movement increment (adjust these values as needed)
-        const latIncrement = MapDialog.zoneWidth; // Latitude increment for each movement
-        const lngIncrement = MapDialog.zoneHeight; // Longitude increment for each movement
-
-        let longMultiplier = document.querySelector('#mapCanvasLongMult').value;
-        let latMultiplier = document.querySelector('#mapCanvasLatMult').value;
-
-        switch (direction) {
-            case 'left':
-                lng -= lngIncrement* longMultiplier;
-                break;
-            case 'right':
-                lng += lngIncrement * longMultiplier;
-                break;
-            case 'up':
-                lat += latIncrement * latMultiplier;
-                break;
-            case 'down':
-                lat -= latIncrement * latMultiplier;
-                break;
-        }
-       
-    
-        // Pan the map to the new center
-        MapDialog.mapPortal.panTo(new google.maps.LatLng(lat, lng));
-        const sceneNameElement = document.querySelector('#mapCanvasSceneName');
-    }
-
-    static calculateZoneSize = () => {
-        const bounds = MapDialog.mapPortal.getBounds();
-        const ne = bounds.getNorthEast(); // North East corner
-        const sw = bounds.getSouthWest(); // South West corner
-
-        // Calculate zone width and height in terms of latitude and longitude
-        MapDialog.zoneWidth = Math.abs(ne.lng() - sw.lng());
-        MapDialog.zoneHeight = Math.abs(ne.lat() - sw.lat());
-
-        console.log('Zone Width:', MapDialog.zoneWidth, 'Zone Height:', MapDialog.zoneHeight);
-        // Now zoneWidth and zoneHeight hold the lng and lat differences of the visible area
-    };  
-    static zoneWidth = 0;
-    static zoneHeight = 0;
 
     // 40.7571, -73.8458 - Citi Field, Queens, NY - LET'S GO METS!
     static initMap(center = { lat: 40.7571, lng: -73.8458 }) {
@@ -399,27 +135,7 @@ class MapDialog extends FormApplication {
     
         });
 
-        let previousWindowHeight = window.innerHeight;
-
-        function adjustMapPortalHeight() {
-            var windowHeight = window.innerHeight;
-            var mapPortal = document.getElementById('mapPortal');
-        
-            // Check if the window height has changed
-            if (windowHeight !== previousWindowHeight) {
-                mapPortal.style.height = Math.min(windowHeight * 0.75, windowHeight) + 'px';
-                previousWindowHeight = windowHeight;
-            }
-        }
-        
-        // Call the function initially
-        adjustMapPortalHeight();
-        
-        // Set an interval to check for window resize every 500 milliseconds
-        setInterval(adjustMapPortalHeight, 500);
-
     }
-
 
     // Adapted from: https://developers.google.com/maps/documentation/javascript/examples/places-searchbox
     static initAutocomplete(map, input) {
@@ -494,15 +210,6 @@ class MapDialog extends FormApplication {
         document.getElementById('mapCanvasGenerateExpandedScene').addEventListener('click', () => MapDialog.captureSurroundingZones());
         
     
-    }
-
-    maximizeDialog() {
-        this.element.css({
-            height: '100vh',
-            width: '100vw',
-            top: 0,
-            left: 0
-        });
     }
 
     async _updateObject(event, formData) {
@@ -620,8 +327,10 @@ class MapCanvas extends Application {
         const currentZoom = MapDialog.mapPortal.getZoom();
         sceneName += " Zoom:" +currentZoom;
         let scene = game.scenes.find(s => s.name.startsWith(sceneName));
-    
+        let test_scene = game.scenes.find(s => s.name = "Citi Field Zoom:17");
+        console.log("Test Scene:", test_scene);
         if (!scene) {
+
             // Create our scene if we don't have it.
             await Scene.create({ name: sceneName }).then(s => {
                 scene = s;
@@ -635,6 +344,8 @@ class MapCanvas extends Application {
 
             // Save the current zoom level for future use
             game.settings.set("map-canvas", "LAST_USED_ZOOM", currentZoom);
+
+            console.log("Scene:", scene);
         }
 
         await MapCanvas.getMapCanvasImage().then(async (image) => {
@@ -642,21 +353,17 @@ class MapCanvas extends Application {
             const DEFAULT_SCENE = game.settings.get("map-canvas", "DEFAULT_SCENE");
 
             // TODO: Make some of these user-definable. Perhaps leveraging Scene.createDialog().
-            MapDialog.calculateZoneSize();
             const mapElement = document.getElementById('mapPortal');
-
-            // Getting the scrollHeight and scrollWidth
-            const height = mapElement.scrollHeight;
-            const width = mapElement.scrollWidth;
 
             let updates = {
                 _id: scene.id,
-                img: image.dataUrl,
-                bgSource: image.dataUrl,   
-                width: width,
-                //width: 4000,
-                height: height,
-               // height: 3000,
+                //img: image.dataUrl,
+                background: { src: image.dataUrl },
+                //width: width,
+                width: 4000,
+                //height: height,
+                height: 3000,
+
                 padding: 0.01,
                 gridType: 0
             }
@@ -670,15 +377,18 @@ class MapCanvas extends Application {
                 });
 
                 await FilePicker.createDirectory('user', 'map-canvas').catch((e) => {
-                console.log(e);
+                    console.log(e);
                 });
 
                 await FilePicker.upload('data', 'map-canvas', tempFile).then((res) => {
-                    updates.bgSource = res.path;
-                    updates.img = res.path;
+                    console.log("UploadRes:", res)
+                    updates.background = { src: res.path };
+                    //updates.img = res.path;
                 });
 
             }
+
+            console.log("Image: ", updates);
 
             await Scene.updateDocuments([updates]).then(() => {
                 ui.notifications.info(" Map Canvas | Updated Scene: " + sceneName)

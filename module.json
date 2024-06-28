@@ -5,10 +5,10 @@
   "version": "This is auto replaced",
   "library": "false",
   "minimumCoreVersion": "0.9",
-  "compatibleCoreVersion": "11",
+  "compatibleCoreVersion": "12",
   "compatibility": {
     "minimum": 9,
-    "verified": 11
+    "verified": 12
   },
   "authors": [
     {
