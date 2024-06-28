@@ -1,16 +1,6 @@
 import {MAP_STYLES} from "./map-canvas-styles.js";
 import {ImageDataConverter} from "./image-data-converter.js";
 
-//register updattable properties
-Hooks.once('ready', async function() {
-    // Register last used scene name setting
-    
-
-    // ... other code for your module setup ...
-});
-
-
-
 class MapDialog extends FormApplication {
 
     constructor(object, options) {
@@ -23,7 +13,7 @@ class MapDialog extends FormApplication {
         Hooks.once('renderApplication', async () => {
             const MAPS_API_KEY = game.settings.get("map-canvas", "MAPS_API_KEY");
             if(!window['mapcanvas'].apiLoaded) {
-                await $.getScript('https://polyfill.io/v3/polyfill.min.js?features=default', () => {});
+                await $.getScript('https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=default', () => {});
                 await $.getScript('https://maps.googleapis.com/maps/api/js?libraries=places&v=weekly&key='+MAPS_API_KEY, () => {});
                 window['mapcanvas'].apiLoaded = true;  // We assume.
             }
@@ -124,67 +114,67 @@ class MapDialog extends FormApplication {
        
         ui.notifications.info("capturing left image");
         await MapDialog.moveToAdjacentZone('left');
-        await sleep(2000);
+        await sleep(5000);
         capturedImages.left = await MapCanvas.getMapCanvasImage();
         
         ui.notifications.info("capturing right image");
         await MapDialog.moveToAdjacentZone('right');
-        await sleep(2000);
+        await sleep(5000);
         await MapDialog.moveToAdjacentZone('right');
-        await sleep(2000);
+        await sleep(5000);
         capturedImages.right = await MapCanvas.getMapCanvasImage();
 
         ui.notifications.info("capturing up image");
         await MapDialog.moveToAdjacentZone('left');
-        await sleep(2000);
+        await sleep(5000);
         await MapDialog.moveToAdjacentZone('up');
-        await sleep(2000);
+        await sleep(5000);
         capturedImages.up = await MapCanvas.getMapCanvasImage();
 
         ui.notifications.info("capturing up-left image");
         await MapDialog.moveToAdjacentZone('left');
-        await sleep(2000);
+        await sleep(5000);
         capturedImages.upleft = await MapCanvas.getMapCanvasImage()
         
         ui.notifications.info("capturing up right-image");
         await MapDialog.moveToAdjacentZone('right');
-        await sleep(2000);
+        await sleep(5000);
         await MapDialog.moveToAdjacentZone('right');
-        await sleep(2000);
+        await sleep(5000);
         capturedImages.upright = await MapCanvas.getMapCanvasImage();
 
 
         ui.notifications.info("capturing down image");
         await MapDialog.moveToAdjacentZone('left');
-        await sleep(2000);
+        await sleep(5000);
         await MapDialog.moveToAdjacentZone('down');
-        await sleep(2000);
+        await sleep(5000);
         await MapDialog.moveToAdjacentZone('down');
-        await sleep(2000);
+        await sleep(5000);
         capturedImages.down = await MapCanvas.getMapCanvasImage();
 
         ui.notifications.info("capturing down-right image");
         await MapDialog.moveToAdjacentZone('left');
-        await sleep(2000);
+        await sleep(5000);
         capturedImages.downleft = await MapCanvas.getMapCanvasImage();
 
         ui.notifications.info("capturing down-left images");
         await MapDialog.moveToAdjacentZone('right');
-        await sleep(2000);
+        await sleep(5000);
 
         await MapDialog.moveToAdjacentZone('right');
-        await sleep(2000);
+        await sleep(5000);
         capturedImages.downright = await MapCanvas.getMapCanvasImage();
         await MapDialog.moveToAdjacentZone('left');
-        await sleep(2000);
+        await sleep(5000);
     
         ui.notifications.info("stiching image together");
         const stitchedImage = await MapDialog.stitchImages(capturedImages); // Implement the stitching logic
 
         // Get dimensions from the map element
-        var mapElement = document.getElementById('mapPortal');
-        var height = mapElement.scrollHeight * 3;
-        var width = mapElement.scrollWidth * 3;
+        let mapElem = MapDialog.mapPortal.getDiv();
+        const height  = mapElem.offsetHeight * 3;
+        const width = mapElem.offsetWidth * 3;
    
         let scene = await MapDialog.updateScenery();
         const response = await fetch(stitchedImage);
