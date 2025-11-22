@@ -127,6 +127,19 @@
     flex-wrap: wrap; /* allow wrapping if the window is very narrow */
 }
 
+.mapCanvasMyMaps {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    width: 100%;
+    align-items: center;
+}
+
+#mapCanvasMyMapsUrl {
+    flex: 1 1 320px;
+    min-width: 260px;
+}
+
 /* Keep buttons from wrapping their labels and apply the same styling */
 #mapCanvasActions input[type="button"] { white-space: nowrap; }
 

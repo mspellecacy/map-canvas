@@ -12,6 +12,15 @@ Configure the map's default behaviour and styling.
 
 Also supports custom styling using: [https://mapstyle.withgoogle.com/](https://mapstyle.withgoogle.com/)
 
+## Google My Maps overlays
+1. Make your My Map public (or unlisted) and copy its "Embed on my site" link from the share dialog.
+2. Paste that URL (or just the `mid` value/KML link) into the "My Maps embed or KML link" field inside Map Canvas.
+3. Click **Load My Map** to convert the embed link into a KML layer that sits on top of the same Google Maps viewport, so captures still work with html2canvas.
+4. Use **Clear My Map** if you want to drop the overlay and return to the base search-driven map.
+
+The last URL you loaded is stored per-user, so reopening the dialog reloads the same overlay automatically.
+
 **You will need to provide your own Google Maps Javascript API Key in the world module settings.**  
 
 # [Demo Video](https://www.youtube.com/watch?v=UEGUJxZJl_Y)
+

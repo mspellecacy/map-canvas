@@ -116,9 +116,10 @@ class MapDialog extends __MC_BaseApp {
 
         MapDialog.mapPortal = {};
         MapDialog.placesService = {};
-        MapDialog.mapPortalElem = document.querySelector('#mapPortal');
-        MapDialog.searchBoxElem = document.querySelector('#mapCanvasSearchBox');
-        MapDialog.zoomLevelElem = document.querySelector('#mapCanvasZoomLevel');
+        MapDialog.mapPortalElem = document.querySelector("#mapPortal");
+        MapDialog.searchBoxElem = document.querySelector("#mapCanvasSearchBox");
+        MapDialog.zoomLevelElem = document.querySelector("#mapCanvasZoomLevel");
+        MapDialog.myMapsUrlElem = document.querySelector("#mapCanvasMyMapsUrl");
 
         const opts = {
             center: center,
@@ -145,13 +146,18 @@ class MapDialog extends __MC_BaseApp {
             MapDialog.zoomLevelElem.value = lastUsedZoom;
         }
     
-        const sceneNameElement = document.querySelector('#mapCanvasSceneName');
+        const sceneNameElement = document.querySelector("#mapCanvasSceneName");
         const lastUsedSceneName = game.settings.get("map-canvas", "LAST_USED_SCENE_NAME");
         if (lastUsedSceneName) {
             
             if (sceneNameElement) {
                 sceneNameElement.value = lastUsedSceneName;
             }
+        }
+
+        const lastMyMapsUrl = game.settings.get("map-canvas", "LAST_MYMAPS_URL");
+        if (MapDialog.myMapsUrlElem && lastMyMapsUrl) {
+            MapDialog.myMapsUrlElem.value = lastMyMapsUrl;
         }
 
         MapDialog.searchBoxElem.addEventListener('input', (event) => {
@@ -163,6 +169,10 @@ class MapDialog extends __MC_BaseApp {
         MapDialog.placesService = new google.maps.places.PlacesService(MapDialog.mapPortal);
 
         MapDialog.initAutocomplete(MapDialog.mapPortal, MapDialog.searchBoxElem);
+
+        if (lastMyMapsUrl) {
+            MapDialog.loadMyMapsLayer({ rawValue: lastMyMapsUrl, silent: true, skipPersist: true, showSpinner: false });
+        }
 
         google.maps.event.addListener(MapDialog.mapPortal, 'center_changed', () => {
             const newCenter = MapDialog.mapPortal.getCenter();
@@ -237,6 +247,152 @@ class MapDialog extends __MC_BaseApp {
         indicator.setAttribute('aria-busy', Boolean(isVisible));
     }
 
+    static async loadMyMapsLayer(options = {}) {
+        const { rawValue = null, silent = false, skipPersist = false, showSpinner = true } = options;
+        if (!MapDialog.mapPortal) {
+            if (!silent) ui.notifications.warn("Map Canvas | Map is not ready yet.");
+            return;
+        }
+        const source = rawValue ?? MapDialog.myMapsUrlElem?.value ?? "";
+        const trimmed = source.trim();
+        if (!trimmed) {
+            if (!silent) ui.notifications.warn("Map Canvas | Paste a My Maps embed link first.");
+            return;
+        }
+        const normalized = MapDialog.normalizeMyMapsUrl(trimmed);
+        if (!normalized) {
+            if (!silent) ui.notifications.error("Map Canvas | Unable to parse that My Maps link.");
+            return;
+        }
+        if (showSpinner) MapDialog.setLoadingState(true);
+        try {
+            await MapDialog.attachMyMapsLayer(normalized);
+            if (!skipPersist) {
+                await game.settings.set("map-canvas", "LAST_MYMAPS_URL", trimmed);
+            }
+            if (!silent) ui.notifications.info("Map Canvas | My Maps overlay loaded.");
+        } catch (e) {
+            console.error("map-canvas: failed to load My Maps overlay", e);
+            if (!silent) {
+                ui.notifications.error("Map Canvas | Failed to load My Maps overlay, see console.");
+            }
+        } finally {
+            if (showSpinner) MapDialog.setLoadingState(false);
+        }
+    }
+
+    static async clearMyMapsLayer(options = {}) {
+        const { quiet = false } = options;
+        MapDialog.detachMyMapsLayer();
+        if (MapDialog.myMapsUrlElem) {
+            MapDialog.myMapsUrlElem.value = "";
+        }
+        try {
+            await game.settings.set("map-canvas", "LAST_MYMAPS_URL", "");
+        } catch (e) {
+            console.error("map-canvas: failed to reset My Maps URL", e);
+        }
+        if (!quiet) {
+            ui.notifications.info("Map Canvas | Removed My Maps overlay.");
+        }
+    }
+
+    static detachMyMapsLayer() {
+        if (MapDialog.myMapsLayer) {
+            try {
+                google?.maps?.event?.clearInstanceListeners?.(MapDialog.myMapsLayer);
+            } catch (e) {
+                console.warn("map-canvas: unable to clear KML layer listeners", e);
+            }
+            MapDialog.myMapsLayer.setMap(null);
+            MapDialog.myMapsLayer = null;
+        }
+    }
+
+    static attachMyMapsLayer(url) {
+        return new Promise((resolve, reject) => {
+            try {
+                MapDialog.detachMyMapsLayer();
+                const layer = new google.maps.KmlLayer({
+                    url,
+                    map: MapDialog.mapPortal,
+                    preserveViewport: false,
+                    suppressInfoWindows: false
+                });
+                MapDialog.myMapsLayer = layer;
+                google.maps.event.addListenerOnce(layer, "status_changed", () => {
+                    const status = layer.getStatus?.();
+                    const okStatus = google?.maps?.KmlLayerStatus?.OK;
+                    if (!status || !okStatus || status === okStatus) {
+                        resolve(layer);
+                    } else {
+                        reject(new Error(`KML status: ${status}`));
+                    }
+                });
+            } catch (error) {
+                reject(error);
+            }
+        });
+    }
+
+    static normalizeMyMapsUrl(rawValue) {
+        if (!rawValue) return null;
+        let trimmed = rawValue.trim();
+        if (!trimmed) return null;
+        trimmed = trimmed.replace(/^['"]+/, "").replace(/['"]+$/, "");
+        if (!trimmed) return null;
+
+        if (trimmed.includes("<iframe")) {
+            const match = trimmed.match(/src="([^"]+)"/i);
+            if (match?.[1]) {
+                return MapDialog.normalizeMyMapsUrl(match[1]);
+            }
+        }
+
+        if (trimmed.startsWith("http") && trimmed.includes(" ")) {
+            const firstSpace = trimmed.indexOf(" ");
+            trimmed = trimmed.slice(0, firstSpace);
+        }
+
+        const buildFromMid = (mid) => {
+            const safeMid = mid?.trim();
+            if (!safeMid) return null;
+            if (!/^[A-Za-z0-9_-]+$/.test(safeMid)) return null;
+            return `https://www.google.com/maps/d/kml?mid=${safeMid}&forcekml=1`;
+        };
+
+        let parsedUrl = null;
+        try {
+            parsedUrl = new URL(trimmed);
+        } catch (e) {
+            parsedUrl = null;
+        }
+
+        if (parsedUrl) {
+            const hostname = parsedUrl.hostname ?? "";
+            const pathname = parsedUrl.pathname ?? "";
+            if (hostname.includes("google.") && pathname.includes("/maps/d/")) {
+                if (pathname.includes("/maps/d/kml")) {
+                    parsedUrl.searchParams.set("forcekml", "1");
+                    return parsedUrl.toString();
+                }
+                const midParam = parsedUrl.searchParams.get("mid");
+                if (midParam) {
+                    return buildFromMid(midParam);
+                }
+            }
+            if (pathname.endsWith(".kml") || pathname.endsWith(".kmz")) {
+                return parsedUrl.toString();
+            }
+        }
+
+        if (trimmed.startsWith("mid=")) {
+            return buildFromMid(trimmed.split("=").pop());
+        }
+
+        return buildFromMid(trimmed);
+    }
+
     static toggleLabels() {
         // Unfortunately this will effectively overwrite label visibility styling defined by any custom style.
         if(MapDialog.labelsOn) {
@@ -290,6 +446,8 @@ class MapDialog extends __MC_BaseApp {
         addClick('mapCanvasGenerateScene', () => MapCanvas.updateScene(true));
         addClick('mapCanvasToggleLabels', () => MapDialog.toggleLabels());
         addClick('mapCanvasMaximize', () => this.maximizeDialog());
+        addClick("mapCanvasLoadMyMap", () => MapDialog.loadMyMapsLayer());
+        addClick("mapCanvasClearMyMap", () => MapDialog.clearMyMapsLayer());
         // Guards for potential future controls
         addClick('mapCanvasMoveLeft', () => MapDialog.moveToAdjacentZone?.('left'));
         addClick('mapCanvasMoveRight', () => MapDialog.moveToAdjacentZone?.('right'));
@@ -340,6 +498,8 @@ class MapDialog extends __MC_BaseApp {
         MAP_CANVAS_STATE.dialogActive = false;
         MAP_CANVAS_STATE.dialog = null;
         MAP_CANVAS_STATE.mapInitialized = false;
+        MapDialog.detachMyMapsLayer();
+        MapDialog.myMapsUrlElem = null;
         await super.close?.();
     }
 
@@ -352,6 +512,9 @@ class MapDialog extends __MC_BaseApp {
         }
     }
 }
+
+MapDialog.myMapsLayer = null;
+MapDialog.myMapsUrlElem = null;
 
 class MapCanvas extends Application {
 
@@ -756,6 +919,14 @@ class MapCanvas extends Application {
             config: false,
             type: Number,
             default: -73.8458, // Default longitude, adjust as needed
+        });
+
+        game.settings.register('map-canvas', 'LAST_MYMAPS_URL', {
+            name: 'Last My Maps URL',
+            scope: 'client',
+            config: false,
+            type: String,
+            default: ''
         });
         await game.settings.register('map-canvas', 'MAPS_API_KEY', {
             name: 'Google Maps Javascript API Key',
