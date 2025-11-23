@@ -57,8 +57,9 @@ class MapDialog extends __MC_BaseApp {
             closeOnSubmit: false
         },
         position: {
-            width: "auto",
-            height: "auto"
+            // Default spawn size 830x660 for ApplicationV2
+            width: 830,
+            height: 660
         }
     } : undefined;
 
@@ -84,6 +85,9 @@ class MapDialog extends __MC_BaseApp {
         opts.isEditable = false;
         opts.closeOnSubmit = false;
         opts.popOut = true;
+        // Default spawn size 830x660 on legacy Application API
+        opts.width = 830;
+        opts.height = 660;
         return opts;
     }
 
@@ -124,8 +128,8 @@ class MapDialog extends __MC_BaseApp {
             center: center,
             zoom: 17,
             tilt: 0, // Suppress tilting on zoom in by default. (users can still toggle it on)
-            scaleControl: true,
-            disableDefaultUI: false,
+            scaleControl: false,
+            disableDefaultUI: true, // Replace Google's controls with our own
             streetViewControl: false, // TODO: Figure out how to make Street View capture properly.
             mapTypeId: google.maps.MapTypeId[game.settings.get("map-canvas", "DEFAULT_MAP_MODE")],
            // mapTypeId: google.maps.MapTypeId.SATELLITE,
@@ -133,6 +137,19 @@ class MapDialog extends __MC_BaseApp {
         }
 
         MapDialog.mapPortal = new google.maps.Map(MapDialog.mapPortalElem, opts);
+
+        // Move our existing inputs and action buttons into Google Maps Custom Controls
+        try {
+            const inputHolder = document.getElementById('inputHolder');
+            if (inputHolder && MapDialog.mapPortal?.controls) {
+                // Ensure interactions are allowed for our overlay controls
+                inputHolder.style.pointerEvents = 'auto';
+                // Place the whole toolbar as a single control to preserve its layout and styling
+                MapDialog.mapPortal.controls[google.maps.ControlPosition.TOP_CENTER].push(inputHolder);
+            }
+        } catch (e) {
+            console.warn('map-canvas: failed to attach custom controls to Google Maps', e);
+        }
 
         google.maps.event.addListener(MapDialog.mapPortal, 'zoom_changed', () => {
             MapDialog.zoomLevelElem.value = MapDialog.mapPortal.getZoom();
@@ -238,13 +255,38 @@ class MapDialog extends __MC_BaseApp {
     }
 
     static toggleLabels() {
-        // Unfortunately this will effectively overwrite label visibility styling defined by any custom style.
-        if(MapDialog.labelsOn) {
-            MapDialog.mapPortal.set('styles', MAP_STYLES.LABELS_OFF);
-            MapDialog.labelsOn = false;
-        } else {
-            MapDialog.mapPortal.set('styles', MAP_STYLES.LABELS_ON);
-            MapDialog.labelsOn = true;
+        // When viewing vector map types (e.g., ROADMAP), we can toggle labels via styles.
+        // For satellite imagery, Google provides two types: SATELLITE (no labels) and HYBRID (with labels).
+        // In satellite domain, switch the mapTypeId between SATELLITE and HYBRID to emulate label toggling.
+        try {
+            const mt = MapDialog.mapPortal.getMapTypeId?.();
+            const isSatelliteDomain = (mt === google.maps.MapTypeId.SATELLITE) || (mt === google.maps.MapTypeId.HYBRID);
+
+            if (isSatelliteDomain) {
+                // Toggle between SATELLITE (labels off) and HYBRID (labels on)
+                if (MapDialog.labelsOn) {
+                    // Turn labels off
+                    MapDialog.mapPortal.setOptions({ styles: null });
+                    MapDialog.mapPortal.setMapTypeId(google.maps.MapTypeId.SATELLITE);
+                    MapDialog.labelsOn = false;
+                } else {
+                    // Turn labels on
+                    MapDialog.mapPortal.setOptions({ styles: null });
+                    MapDialog.mapPortal.setMapTypeId(google.maps.MapTypeId.HYBRID);
+                    MapDialog.labelsOn = true;
+                }
+            } else {
+                // ROADMAP/TERRAIN/etc.: toggle using style sets
+                if (MapDialog.labelsOn) {
+                    MapDialog.mapPortal.set('styles', MAP_STYLES.LABELS_OFF);
+                    MapDialog.labelsOn = false;
+                } else {
+                    MapDialog.mapPortal.set('styles', MAP_STYLES.LABELS_ON);
+                    MapDialog.labelsOn = true;
+                }
+            }
+        } catch (e) {
+            console.warn('map-canvas: toggleLabels failed', e);
         }
 
     }
@@ -286,6 +328,37 @@ class MapDialog extends __MC_BaseApp {
             const el = document.getElementById(id);
             if (el) el.addEventListener('click', handler, { passive: true });
         };
+        // Zoom controls (custom, replacing Google's)
+        addClick('mapCanvasZoomIn', () => {
+            try {
+                const curr = MapDialog.mapPortal.getZoom?.() ?? 0;
+                MapDialog.mapPortal.setZoom?.(curr + 1);
+            } catch (e) { console.warn('map-canvas: zoom in failed', e); }
+        });
+        addClick('mapCanvasZoomOut', () => {
+            try {
+                const curr = MapDialog.mapPortal.getZoom?.() ?? 0;
+                MapDialog.mapPortal.setZoom?.(curr - 1);
+            } catch (e) { console.warn('map-canvas: zoom out failed', e); }
+        });
+        // Map/Satellite toggle
+        addClick('mapCanvasToggleMapType', () => {
+            try {
+                const mt = MapDialog.mapPortal.getMapTypeId?.();
+                const isSatelliteDomain = (mt === google.maps.MapTypeId.SATELLITE) || (mt === google.maps.MapTypeId.HYBRID);
+
+                if (isSatelliteDomain) {
+                    // Switch back to ROADMAP and re-apply label styling based on current label state
+                    MapDialog.mapPortal.setMapTypeId(google.maps.MapTypeId.ROADMAP);
+                    MapDialog.mapPortal.set('styles', MapDialog.labelsOn ? MAP_STYLES.LABELS_ON : MAP_STYLES.LABELS_OFF);
+                } else {
+                    // Enter satellite domain; clear styles and pick HYBRID (labels) or SATELLITE (no labels)
+                    MapDialog.mapPortal.setOptions({ styles: null });
+                    const next = MapDialog.labelsOn ? google.maps.MapTypeId.HYBRID : google.maps.MapTypeId.SATELLITE;
+                    MapDialog.mapPortal.setMapTypeId(next);
+                }
+            } catch (e) { console.warn('map-canvas: toggle map type failed', e); }
+        });
         addClick('mapCanvasUpdateScene', () => MapCanvas.updateScene(false));
         addClick('mapCanvasGenerateScene', () => MapCanvas.updateScene(true));
         addClick('mapCanvasToggleLabels', () => MapDialog.toggleLabels());
@@ -691,18 +764,41 @@ class MapCanvas extends Application {
     static async getMapCanvasImage() {
         await MapCanvas.loadHtml2Canvas();
 
-        // Remove controls before taking map capture
+        // Hide our custom toolbar and loading overlay before taking the capture
+        const toolbar = document.getElementById('inputHolder');
+        const loader = document.getElementById('loadingIndicator');
+        const prevToolbarDisplay = toolbar?.style?.display;
+        const prevLoaderDisplay = loader?.style?.display;
+        try {
+            if (toolbar) toolbar.style.display = 'none';
+            if (loader) loader.style.display = 'none';
+        } catch (_) { /* noop */ }
         MapDialog.mapPortal.setOptions({ disableDefaultUI: true });
         await sleep(100); // Wait for map to update view
 
         // Capture the map image
         function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
         
-        const mapCanvas = await html2canvas(document.querySelector("#mapPortal"), { useCORS: true });
+        const mapCanvas = await html2canvas(document.querySelector("#mapPortal"), {
+            useCORS: true,
+            // As a belt-and-suspenders approach, explicitly ignore our toolbar
+            ignoreElements: (node) => {
+                try {
+                    if (!node) return false;
+                    if (node.id === 'inputHolder') return true;
+                    if (typeof node.closest === 'function' && node.closest('#inputHolder')) return true;
+                } catch (_) { /* noop */ }
+                return false;
+            }
+        });
         const dataUrl = mapCanvas.toDataURL();
         const imageDems = { width: mapCanvas.width, height: mapCanvas.height };
 
-        MapDialog.mapPortal.setOptions({ disableDefaultUI: false });
+        MapDialog.mapPortal.setOptions({ disableDefaultUI: true }); // keep Google UI off (we use custom)
+        try {
+            if (toolbar) toolbar.style.display = prevToolbarDisplay ?? '';
+            if (loader) loader.style.display = prevLoaderDisplay ?? '';
+        } catch (_) { /* noop */ }
 
         return { dataUrl, dems: imageDems };
     }

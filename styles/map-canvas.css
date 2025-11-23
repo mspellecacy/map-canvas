@@ -7,6 +7,12 @@
 */
 
 /* Loading overlay */
+#mapPortalForm {
+    /* Enforce a minimum content size so the window doesn't open too small */
+    min-width: 640px;
+    min-height: 480px;
+}
+
 #loadingIndicator {
     display: none;
     position: absolute;
@@ -72,7 +78,7 @@
     align-items: center;
     padding: 8px;
     border-radius: 12px;
-    background: rgba(0, 0, 0, 0.18);
+    background: rgba(0, 0, 0, 0.50);
     border: 1px solid rgba(255, 255, 255, 0.08);
     backdrop-filter: blur(6px) saturate(120%);
     box-shadow: 0 2px 6px rgba(0,0,0,0.15);

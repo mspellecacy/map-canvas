@@ -1,4 +1,18 @@
 # Changelog
+## v0.0.12
+- Change: Default window spawn size set to at least 640x480 for both Foundry ApplicationV2 (v13+) and legacy FormApplication (v9–v12). This ensures the Map Canvas dialog opens at a usable size by default.
+
+## v0.0.11
+- Bugfix: Labels button works correctly after switching to Satellite view.
+  - In Satellite view, the Labels toggle now switches between HYBRID (labels on) and SATELLITE (labels off).
+  - The Map/Sat toggle preserves the current label state: entering Satellite picks HYBRID or SATELLITE based on label state; returning to Map reapplies label styles appropriately.
+
+## v0.0.10
+- Bugfix: Custom controls and overlays no longer appear in captured images when generating or updating scenes.
+  - During capture, the toolbar (#inputHolder) and loading overlay are temporarily hidden and explicitly
+    excluded via html2canvas ignoreElements. Google default UI remains disabled throughout capture.
+  - Restores UI state immediately after capture.
+
 ## v0.0.9
 - Replace deprecated FormApplication usage with ApplicationV2 when available (Foundry v13+),
   falling back to FormApplication for older versions. This removes deprecation warnings on v13
