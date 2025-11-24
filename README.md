@@ -14,4 +14,8 @@ Also supports custom styling using: [https://mapstyle.withgoogle.com/](https://m
 
 **You will need to provide your own Google Maps Javascript API Key in the world module settings.**  
 
+## Image capture pipeline
+Map Canvas captures the Google Maps viewport with the [html-to-image](https://github.com/bubkoo/html-to-image) library for typical scenes, and automatically falls back to [html2canvas](https://html2canvas.hertzen.com/) for ultra-wide captures where foreignObject rendering starts duplicating tiles. The html2canvas path renders at a fixed scale to avoid the white seam artifacts that appear between Google map tiles on very large captures. Generated scenes are saved with Foundry's grid disabled, so you only see the raw satellite imagery unless you explicitly add a grid yourself later. Both capture paths stay completely client-side and require no additional Google export APIs.
+
 # [Demo Video](https://www.youtube.com/watch?v=UEGUJxZJl_Y)
+

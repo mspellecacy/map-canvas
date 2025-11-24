@@ -1,4 +1,11 @@
 # Changelog
+## v0.0.13
+- Change: Swap html2canvas for the maintained html-to-image library, reducing bundle weight and avoiding extra Google capture APIs.
+- Fix: Wide captures now auto-fallback to html2canvas when foreignObject rendering would duplicate tiles, restoring accurate imagery for ultra-wide scenes.
+- Fix: html2canvas renders at a fixed scale to eliminate the white seam artifacts that appeared between Google map tiles on very large captures.
+- Fix: Generated scenes are now gridless by default to prevent the white overlay from appearing on large captures (you can re-enable a grid later if desired).
+- Improvement: Capture flow now decodes the generated PNG to derive dimensions, keeping scene sizing accurate while remaining fully client-side.
+
 ## v0.0.12
 - Change: Default window spawn size set to at least 640x480 for both Foundry ApplicationV2 (v13+) and legacy FormApplication (v9–v12). This ensures the Map Canvas dialog opens at a usable size by default.
 

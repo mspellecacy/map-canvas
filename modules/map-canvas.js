@@ -437,7 +437,7 @@ class MapCanvas extends Application {
         // Expose the instance for event handlers defined outside of this class scope
         window.mapCanvasInstance = this;
 
-        MapCanvas.loadHtml2Canvas();
+        // MapCanvas.loadHtml2Canvas();
 
         Hooks.on("getSceneControlButtons", (controls) => this.addControls(controls));
 
@@ -728,7 +728,8 @@ class MapCanvas extends Application {
                 width,
                 height,
                 padding: 0.01,
-                gridType: 0
+                "grid.type": GRIDLESS_TYPE,
+                "grid.alpha": 0
             }
 
             if(USE_STORAGE) {
@@ -762,51 +763,130 @@ class MapCanvas extends Application {
 
     // TODO: Kinda violates single-responsibility principle, method should be moved to the MapDialog class.
     static async getMapCanvasImage() {
-        await MapCanvas.loadHtml2Canvas();
+        const target = document.querySelector('#mapPortal');
+        if (!target) {
+            throw new Error('map-canvas: Unable to locate #mapPortal for capture');
+        }
+
+        const bounds = target.getBoundingClientRect();
+        const preferHtml2Canvas = MapCanvas.shouldUseHtml2Canvas(bounds);
 
         // Hide our custom toolbar and loading overlay before taking the capture
         const toolbar = document.getElementById('inputHolder');
         const loader = document.getElementById('loadingIndicator');
         const prevToolbarDisplay = toolbar?.style?.display;
         const prevLoaderDisplay = loader?.style?.display;
+        const filter = (node) => {
+            try {
+                if (!node) return true;
+                if (node.id === 'inputHolder') return false;
+                if (typeof node.closest === 'function' && node.closest('#inputHolder')) return false;
+            } catch (_) { /* noop */ }
+            return true;
+        };
+        const restoreUi = () => {
+            try {
+                MapDialog.mapPortal?.setOptions({ disableDefaultUI: true });
+                if (toolbar) toolbar.style.display = prevToolbarDisplay ?? '';
+                if (loader) loader.style.display = prevLoaderDisplay ?? '';
+            } catch (_) { /* noop */ }
+        };
+
+        function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
         try {
             if (toolbar) toolbar.style.display = 'none';
             if (loader) loader.style.display = 'none';
         } catch (_) { /* noop */ }
-        MapDialog.mapPortal.setOptions({ disableDefaultUI: true });
+        MapDialog.mapPortal?.setOptions({ disableDefaultUI: true });
         await sleep(100); // Wait for map to update view
 
-        // Capture the map image
-        function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
-        
-        const mapCanvas = await html2canvas(document.querySelector("#mapPortal"), {
-            useCORS: true,
-            // As a belt-and-suspenders approach, explicitly ignore our toolbar
-            ignoreElements: (node) => {
-                try {
-                    if (!node) return false;
-                    if (node.id === 'inputHolder') return true;
-                    if (typeof node.closest === 'function' && node.closest('#inputHolder')) return true;
-                } catch (_) { /* noop */ }
-                return false;
+        let useHtml2Canvas = preferHtml2Canvas;
+        let dataUrl;
+        let imageDems;
+
+        if (!useHtml2Canvas) {
+            try {
+                await MapCanvas.loadHtmlToImage();
+                const htmlToImage = window.htmlToImage;
+                if (!htmlToImage?.toPng) {
+                    throw new Error('map-canvas: html-to-image failed to load');
+                }
+                dataUrl = await htmlToImage.toPng(target, {
+                    cacheBust: true,
+                    filter
+                });
+                imageDems = await MapCanvas.decodeImageDimensions(dataUrl);
+            } catch (err) {
+                console.warn('map-canvas: html-to-image capture failed, falling back to html2canvas', err);
+                useHtml2Canvas = true;
             }
-        });
-        const dataUrl = mapCanvas.toDataURL();
-        const imageDems = { width: mapCanvas.width, height: mapCanvas.height };
+        }
 
-        MapDialog.mapPortal.setOptions({ disableDefaultUI: true }); // keep Google UI off (we use custom)
-        try {
-            if (toolbar) toolbar.style.display = prevToolbarDisplay ?? '';
-            if (loader) loader.style.display = prevLoaderDisplay ?? '';
-        } catch (_) { /* noop */ }
+        if (useHtml2Canvas) {
+            await MapCanvas.loadHtml2Canvas();
+            const html2canvas = window.html2canvas;
+            if (typeof html2canvas !== 'function') {
+                restoreUi();
+                throw new Error('map-canvas: html2canvas failed to load');
+            }
+            const canvas = await html2canvas(target, {
+                useCORS: true,
+                backgroundColor: null,
+                logging: false,
+                scale: 1, // prevent fractional tile joins that show white seams on large captures
+                ignoreElements: (node) => !filter(node)
+            });
+            dataUrl = canvas.toDataURL();
+            imageDems = { width: canvas.width, height: canvas.height };
+        }
 
+        restoreUi();
         return { dataUrl, dems: imageDems };
     }
+
+    static shouldUseHtml2Canvas(bounds) {
+        const pixelRatio = window.devicePixelRatio || 1;
+        const maxDimension = Math.max(bounds.width, bounds.height) * pixelRatio;
+        // html-to-image relies on foreignObject which breaks with extremely large translations/dimensions.
+        // Empirically, keep it under ~1600px to avoid the repeating tile artefact shown in wide captures.
+        const FOREIGN_OBJECT_SAFE_LIMIT = 1600;
+        return maxDimension > FOREIGN_OBJECT_SAFE_LIMIT;
+    }
+
+    static async decodeImageDimensions(dataUrl) {
+        return new Promise((resolve, reject) => {
+            const image = new Image();
+            image.onload = () => resolve({
+                width: image.naturalWidth || image.width,
+                height: image.naturalHeight || image.height
+            });
+            image.onerror = (err) => reject(err);
+            image.src = dataUrl;
+            if (typeof image.decode === 'function') {
+                image.decode().catch((err) => reject(err));
+            }
+        });
+    }
     
+    static loadHtmlToImage() {
+        if (!MapCanvas.htmlToImagePromise) {
+            MapCanvas.htmlToImagePromise = new Promise((resolve, reject) => {
+                $.getScript('https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.min.js')
+                    .done(() => resolve())
+                    .fail((_, __, exception) => {
+                        const error = exception || new Error('Failed to load html-to-image');
+                        reject(error);
+                    });
+            });
+        }
+        return MapCanvas.htmlToImagePromise;
+    }
+
     static loadHtml2Canvas() {
         if (!MapCanvas.html2CanvasPromise) {
             MapCanvas.html2CanvasPromise = new Promise((resolve, reject) => {
-                $.getScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.3.2/html2canvas.min.js')
+                $.getScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js')
                     .done(() => resolve())
                     .fail((_, __, exception) => {
                         const error = exception || new Error('Failed to load html2canvas');
@@ -974,6 +1054,7 @@ class MapCanvas extends Application {
 
 }
 
+MapCanvas.htmlToImagePromise = null;
 MapCanvas.html2CanvasPromise = null;
 
 const mapCanvas = new MapCanvas();
